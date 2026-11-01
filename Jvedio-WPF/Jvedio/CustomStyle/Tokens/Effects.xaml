@@ -1,0 +1,97 @@
+<!--
+    ============================================================
+    Tokens / Effects.xaml —— 磨砂玻璃与阴影（浅色模式）
+    ============================================================
+
+    ## 为什么不是 backdrop-filter
+
+    Web 的 backdrop-filter 可以直接模糊「背后的内容」。
+    WPF 的 BlurEffect 只能模糊「元素自身」，无法采样背后像素。
+
+    浅色模式下用三层叠加模拟磨砂玻璃：
+
+      1. 底层：真实内容（封面图、背景图）
+      2. 上层：高白度半透明色块（不用暗色，否则会发灰）
+      3. 叠加：极浅的 1px 白边 + 1px 灰边，表现玻璃厚度
+
+    浅色模式与深色模式的关键差异：
+    - 深色玻璃靠「降低亮度」体现，浅色玻璃靠「提高白度」体现
+    - 浅色玻璃的半透明色块必须接近白色（#F8-#FC 区间），
+      用灰或暗色会在浅底上形成脏污感
+
+    ## 性能约束（重要）
+
+    BlurEffect 是 GPU 加速的，但作用于大面积区域时仍有开销。
+    规则：
+    - 只用于「固定尺寸的小面积」：侧栏、工具栏、卡片信息区
+    - 不用于滚动列表项（每项一个 Effect 会显著掉帧）
+    - Radius 控制在 8-16；超过 20 观感糊但开销陡增
+-->
+
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- ============================================================
+         磨砂玻璃模糊核
+         ============================================================ -->
+    <BlurEffect x:Key="Effect.Frosted.Medium" Radius="12" KernelType="Gaussian" RenderingBias="Quality" />
+    <BlurEffect x:Key="Effect.Frosted.Light"  Radius="8"  KernelType="Gaussian" RenderingBias="Performance" />
+    <BlurEffect x:Key="Effect.Frosted.Heavy"  Radius="18" KernelType="Gaussian" RenderingBias="Quality" />
+
+    <!-- 玻璃底色：浅色模式用高白度半透明 -->
+    <SolidColorBrush x:Key="Glass.Surface"       Color="#D9F7F7F3" />
+    <SolidColorBrush x:Key="Glass.Surface.Light" Color="#B3FAFAF7" />
+    <SolidColorBrush x:Key="Glass.Surface.Deep"  Color="#E6F2F2EE" />
+
+    <!-- 玻璃高光边框：浅色模式用极浅灰 + 纯白，模拟玻璃边缘 -->
+    <SolidColorBrush x:Key="Glass.Border.Top"    Color="#CCFFFFFF" />
+    <SolidColorBrush x:Key="Glass.Border.Bottom" Color="#14000000" />
+
+    <!-- 玻璃上的文字 -->
+    <SolidColorBrush x:Key="Glass.Foreground"       Color="#FF3A3A35" />
+    <SolidColorBrush x:Key="Glass.Foreground.Muted" Color="#FF96968D" />
+
+    <!-- ============================================================
+         阴影：浅色模式用极轻投影，主要靠边框定形
+         ============================================================ -->
+
+    <!--
+        覆盖闭源的 BlueDropShadowEffect
+
+        闭源 SuperControls.Style 里这个 key 是「蓝色发光」阴影，
+        用在卡片、详情页、搜索面板上。浅色莫兰迪底下，
+        蓝色辉光会与浅绿主色冲突，且发光偏消费级 App 语汇。
+
+        这里改为中性微投影：无色彩偏移、低不透明度。
+        观感是「卡片轻放」而不是「卡片发光」。
+    -->
+    <DropShadowEffect x:Key="BlueDropShadowEffect"
+                      BlurRadius="8" ShadowDepth="1" Direction="270"
+                      Color="#000000" Opacity="0.10" RenderingBias="Performance" />
+
+    <DropShadowEffect x:Key="Effect.Shadow.Soft"
+                      BlurRadius="14" ShadowDepth="2" Direction="270"
+                      Color="#000000" Opacity="0.12" RenderingBias="Performance" />
+
+    <DropShadowEffect x:Key="Effect.Shadow.Card"
+                      BlurRadius="10" ShadowDepth="1" Direction="270"
+                      Color="#000000" Opacity="0.08" RenderingBias="Performance" />
+
+    <!--
+      ## 使用建议
+
+      侧栏（固定宽度，面积中等）：
+        <Border Background="{StaticResource Glass.Surface}"
+                BorderBrush="{StaticResource Glass.Border.Top}"
+                BorderThickness="0,0,1,0" />
+
+      卡片信息区（每张卡底部）：
+        用 Glass.Surface.Deep + Effect.Frosted.Light
+        卡片数量多时必须用 Light（Performance 模式）
+
+      不要给 ScrollViewer 内的每个 ListBoxItem 都加 BlurEffect，
+      改为给整个 ScrollViewer 的父容器加一层固定玻璃。
+    -->
+
+</ResourceDictionary>

@@ -1,0 +1,57 @@
+# 构建产物
+bin/
+obj/
+*.pdb
+*.cache
+*.tlog
+
+# NuGet
+Jvedio-WPF/packages/
+packages/
+*.nupkg
+nuget.exe
+
+# 构建工具与临时目录
+_buildtools/
+.buildtools/
+_stage_release/
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# 运行数据（绝对不能提交）
+# 注意：只锚定仓库根目录 —— 写 data/ 会误伤 Jvedio-WPF/Jvedio/Data（含 SQLite.Interop），
+# 写 logs/ 会误伤 Jvedio-WPF/Jvedio/Core/Logs（源码）。运行日志靠 *.log 兜住。
+/data/
+/devdata/
+_devrun/
+*.sqlite
+*.sqlite-journal
+*.sqlite-wal
+*.sqlite-shm
+*.db
+*.log
+
+# 本地配置
+app_configs.json
+ServerConfig.json
+ProxyConfig.json
+Settings.json
+
+# 系统 / 编辑器
+Thumbs.db
+desktop.ini
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# 临时打包产物（release/ 下的正式安装包要提交）
+release/*.7z
+release/*.tmp
+
+# 构建日志
+*.binlog

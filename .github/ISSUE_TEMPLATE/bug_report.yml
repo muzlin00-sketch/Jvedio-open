@@ -1,0 +1,71 @@
+name: Bug 报告
+description: 功能异常、崩溃、界面错乱、刮削结果不对
+title: '[Bug] '
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        提交前请先搜索已有 issue，避免重复。
+        安全问题请走 [SECURITY.md](https://github.com/muzlin00-sketch/Jvedio-open/blob/main/SECURITY.md)，不要在这里贴细节。
+
+  - type: input
+    id: version
+    attributes:
+      label: 版本
+      description: 右键 `Jvedio.exe` → 属性 → 详细信息里的文件版本
+      placeholder: 例如 5.4.0.0
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: 涉及模块
+      options:
+        - 桌面端界面
+        - 影片库 / 扫描 / 识别
+        - 刮削（内置源或插件）
+        - 播放器
+        - 手机网页版
+        - 投屏
+        - 其他
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 越具体越好，能稳定复现的关键操作要写全
+      placeholder: |
+        1. 打开……
+        2. 点击……
+        3. 出现……
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望结果 / 实际结果
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志或截图
+      description: 日志在程序目录 `data\<用户名>\logs\`；涉及刮削问题时请附上文件名（可打码敏感部分）
+      render: text
+    validations:
+      required: false
+
+  - type: input
+    id: env
+    attributes:
+      label: 环境
+      description: Windows 版本；手机端问题请写手机型号 + 浏览器 + 是否同一局域网
+      placeholder: Windows 11 23H2 / iPhone 15 Safari / 同一 Wi-Fi
+    validations:
+      required: false

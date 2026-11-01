@@ -1,0 +1,172 @@
+<!--
+    ============================================================
+    Tokens / Semantic.xaml —— 第二层：语义别名（浅色莫兰迪）
+    ============================================================
+
+    这一层把「原始色值」翻译成「用途」。
+    界面代码只应引用这一层（或 Component 层），不直接引用 Primitive。
+
+    收益：
+    - 换整体色调只改 Primitive 一层
+    - 换某处用途只改这一层的一个别名
+    - 看到 Semantic.Bg.Base 就知道用途，看到 #F7F7F3 则完全不知道
+
+    间距 / 圆角 / 字号 / 字重也在这里定义，与颜色同等对待。
+
+    ## 浅色模式的层级方向
+
+    深色模式：越上层越亮（base 最暗 → raised 最亮）
+    浅色模式：越上层越白（base 最灰 → raised 纯白）
+
+    这里按浅色模式组织：base 用米灰做画布，raised 用近白做卡片，
+    靠「白度递增 + 极浅边框」建立层次，而不是靠阴影。
+-->
+
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+
+    <!-- 独立字典必须自己 merge 上游，否则找不到 Primitive.* -->
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="pack://application:,,,/Jvedio;Component/CustomStyle/Tokens/Primitive.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+    <!-- ========== 背景层级（浅色：越上层越白） ========== -->
+    <SolidColorBrush x:Key="Semantic.Bg.Base"    Color="{StaticResource Primitive.Neutral.100}" />
+    <SolidColorBrush x:Key="Semantic.Bg.Subtle"  Color="{StaticResource Primitive.Neutral.50}" />
+    <SolidColorBrush x:Key="Semantic.Bg.Raised"  Color="{StaticResource Primitive.White}" />
+    <SolidColorBrush x:Key="Semantic.Bg.Overlay" Color="{StaticResource Primitive.White}" />
+
+    <!-- ========== 前景层级（浅色：越深越重要） ========== -->
+    <SolidColorBrush x:Key="Semantic.Fg.Primary"   Color="{StaticResource Primitive.Neutral.950}" />
+    <SolidColorBrush x:Key="Semantic.Fg.Secondary" Color="{StaticResource Primitive.Neutral.800}" />
+    <SolidColorBrush x:Key="Semantic.Fg.Muted"     Color="{StaticResource Primitive.Neutral.700}" />
+    <SolidColorBrush x:Key="Semantic.Fg.Disabled"  Color="{StaticResource Primitive.Neutral.500}" />
+    <SolidColorBrush x:Key="Semantic.Fg.OnAccent"  Color="{StaticResource Primitive.White}" />
+
+    <!-- ========== 边框与分隔 ========== -->
+    <SolidColorBrush x:Key="Semantic.Border.Default" Color="{StaticResource Primitive.Neutral.300}" />
+    <SolidColorBrush x:Key="Semantic.Border.Subtle"  Color="{StaticResource Primitive.Neutral.200}" />
+    <SolidColorBrush x:Key="Semantic.Border.Strong"  Color="{StaticResource Primitive.Neutral.400}" />
+
+    <!-- ========== 强调色（全界面唯一的莫兰迪浅绿） ========== -->
+    <SolidColorBrush x:Key="Semantic.Accent"       Color="{StaticResource Primitive.Sage.600}" />
+    <SolidColorBrush x:Key="Semantic.Accent.Hover" Color="{StaticResource Primitive.Sage.700}" />
+    <SolidColorBrush x:Key="Semantic.Accent.Soft"  Color="{StaticResource Primitive.Sage.300}" />
+    <SolidColorBrush x:Key="Semantic.Accent.Wash"  Color="{StaticResource Primitive.Sage.100}" />
+
+    <!-- ========== 语义状态 ========== -->
+    <SolidColorBrush x:Key="Semantic.Success" Color="{StaticResource Primitive.Sage.700}" />
+    <SolidColorBrush x:Key="Semantic.Warning" Color="{StaticResource Primitive.Amber.600}" />
+    <SolidColorBrush x:Key="Semantic.Error"   Color="{StaticResource Primitive.Red.600}" />
+    <SolidColorBrush x:Key="Semantic.Info"    Color="{StaticResource Primitive.Blue.600}" />
+
+    <!-- ========== 交互态叠加（浅色模式用淡绿/淡灰） ========== -->
+    <SolidColorBrush x:Key="Semantic.State.Hover"    Color="#0D000000" />
+    <SolidColorBrush x:Key="Semantic.State.Active"   Color="#1A000000" />
+    <SolidColorBrush x:Key="Semantic.State.Selected" Color="#1F87A48E" />
+    <SolidColorBrush x:Key="Semantic.Scrim"          Color="#40000000" />
+
+    <!-- ========== 间距标度（4 的倍数） ========== -->
+    <!--
+        Double 版本：用于 Width/Height/FontSize 等接受 Double 的属性。
+
+        注意：Margin/Padding 需要 Thickness 类型，不能直接用这里的 Double，
+        必须用下面 Space.Inset.* 那一组。这是 WPF 的类型约束，
+        早期只定义了 Double 版本，导致间距 token 一个都引用不出去。
+    -->
+    <sys:Double x:Key="Space.0">0</sys:Double>
+    <sys:Double x:Key="Space.1">4</sys:Double>
+    <sys:Double x:Key="Space.2">8</sys:Double>
+    <sys:Double x:Key="Space.3">12</sys:Double>
+    <sys:Double x:Key="Space.4">16</sys:Double>
+    <sys:Double x:Key="Space.5">20</sys:Double>
+    <sys:Double x:Key="Space.6">24</sys:Double>
+    <sys:Double x:Key="Space.8">32</sys:Double>
+    <sys:Double x:Key="Space.10">40</sys:Double>
+    <sys:Double x:Key="Space.12">48</sys:Double>
+
+    <!-- ========== 间距（Thickness 版本，供 Margin / Padding 使用） ========== -->
+
+    <!-- 卡片内部：文字左侧缩进，与封面留出呼吸感 -->
+    <Thickness x:Key="Space.Inset.CardText">12,0,0,0</Thickness>
+
+    <!-- 卡片内部：识别码上下留白 -->
+    <Thickness x:Key="Space.Inset.CardId">0,7</Thickness>
+
+    <!-- 卡片内部：日期上下留白（略小于识别码，形成紧凑感） -->
+    <Thickness x:Key="Space.Inset.CardDate">0,5</Thickness>
+
+    <!-- 卡片内部：标签戳外边距 -->
+    <Thickness x:Key="Space.Inset.CardTag">0,5,5,0</Thickness>
+
+    <!-- 卡片内边距：封面与卡片边缘的间距 -->
+    <Thickness x:Key="Space.Inset.CardImage">2.5</Thickness>
+
+    <!-- 通用水平缩进 -->
+    <Thickness x:Key="Space.Inset.Sm">4</Thickness>
+    <Thickness x:Key="Space.Inset.Md">8</Thickness>
+    <Thickness x:Key="Space.Inset.Lg">12</Thickness>
+
+    <!-- ========== 圆角标度 ========== -->
+    <CornerRadius x:Key="Radius.Sm">2</CornerRadius>
+    <CornerRadius x:Key="Radius.Md">4</CornerRadius>
+    <CornerRadius x:Key="Radius.Lg">8</CornerRadius>
+
+    <!--
+        卡片专用圆角（可由 Data/theme.json 的「卡片圆角」覆盖）
+
+        单独开两个 key 而不复用 Radius.Md，是因为卡片需要
+        「底部圆角 + 顶部圆角不同」的表现：封面图只圆上两角，
+        与卡片主体拼成完整外形。这类组合值无法用单个 CornerRadius 表达。
+
+        注意：必须用 DynamicResource 引用，才能被运行期注入覆盖。
+        用 StaticResource 会导致注入后白屏（见 MAINTAINING.md 的陷阱二）。
+    -->
+    <CornerRadius x:Key="Card.CornerRadius">6</CornerRadius>
+    <CornerRadius x:Key="Card.CornerRadius.Top">6,6,0,0</CornerRadius>
+
+    <!-- ========== 字号标度 ========== -->
+    <!--
+        字号标度：5 个档位覆盖全部界面文字。
+
+        收敛原则：档位越少，界面越统一。
+        原项目里散落着 11/12/13/14/15/16/20 七个值，
+        但 12 与 13、14 与 15 的差异肉眼几乎无法分辨，
+        属于「随手写数字」而非有意设计。
+
+        映射规则：
+        - 识别码（等宽）：BodyLg 15 —— 主信息，需要最大存在感
+        - 卡片标题/工具栏：Body 13 —— 正文
+        - 日期/元信息：Caption 12 —— 次要信息
+        - 侧栏分组：Caption 11 —— 结构标签
+        - 页面标题：Title 16
+    -->
+    <sys:Double x:Key="Font.Size.Caption">11</sys:Double>
+    <sys:Double x:Key="Font.Size.Body">13</sys:Double>
+    <sys:Double x:Key="Font.Size.BodyLg">15</sys:Double>
+    <sys:Double x:Key="Font.Size.Title">16</sys:Double>
+    <sys:Double x:Key="Font.Size.Code">15</sys:Double>
+
+    <!-- 补充档位：工具栏与卡片标题常用 14，单独开一档避免向下取 13 偏小 -->
+    <sys:Double x:Key="Font.Size.BodySm">12</sys:Double>
+    <sys:Double x:Key="Font.Size.BodyMd">14</sys:Double>
+
+    <!-- ========== 字重 ========== -->
+    <FontWeight x:Key="Font.Weight.Normal">Normal</FontWeight>
+    <FontWeight x:Key="Font.Weight.Medium">Medium</FontWeight>
+    <FontWeight x:Key="Font.Weight.Bold">Bold</FontWeight>
+
+    <!-- ========== 字体族 ========== -->
+    <!-- 识别码用等宽：让 IPZ-229 / MIRD-190 在网格里形成对齐的视觉列 -->
+    <FontFamily x:Key="Font.Family.Code">Consolas, Cascadia Mono, Courier New</FontFamily>
+    <FontFamily x:Key="Font.Family.UI">Microsoft YaHei UI, Microsoft YaHei, Segoe UI</FontFamily>
+
+    <!--
+      动效时长约定（Duration 无法作为资源声明，此处仅作文档）：
+        Fast   0.12s —— hover / 按下反馈
+        Normal 0.20s —— 展开、切换
+    -->
+
+</ResourceDictionary>

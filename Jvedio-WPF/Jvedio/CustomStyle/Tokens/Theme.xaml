@@ -1,0 +1,41 @@
+<!--
+    ============================================================
+    Tokens / Theme.xaml —— Token 体系唯一入口
+    ============================================================
+
+    在 App.xaml 的 MergedDictionaries 中只需引用这一个文件，
+    它负责按正确顺序加载三层。
+
+    ## 加载顺序不能改
+
+    1. Primitive  原始色值，被后面两层引用
+    2. Semantic   语义别名，引用 Primitive
+    3. Component  覆盖闭源主题，引用 Primitive
+
+    若顺序颠倒，StaticResource 会在解析时找不到上游 key 而抛异常。
+
+    ## 如何调整颜色
+
+    - 整体换色调（如玫瑰红改青蓝）：只改 Primitive.xaml 的 Rose 段
+    - 调某类用途（如侧栏更暗）：改 Component.xaml 对应的 Window.Side.Background
+    - 新增语义用途：先在 Semantic.xaml 加别名，再在界面里引用
+
+    ## 为什么不把图标也 token 化
+
+    全项目 370 个 DynamicResource key 中，335 个是图标与文本资源。
+    图标本就应由闭源库按主题提供，纳入 token 体系只会扩大维护面。
+    详见 Component.xaml 顶部说明。
+-->
+
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ResourceDictionary.MergedDictionaries>
+        <ResourceDictionary Source="pack://application:,,,/Jvedio;Component/CustomStyle/Tokens/Primitive.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/Jvedio;Component/CustomStyle/Tokens/Semantic.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/Jvedio;Component/CustomStyle/Tokens/Effects.xaml" />
+        <ResourceDictionary Source="pack://application:,,,/Jvedio;Component/CustomStyle/Tokens/Component.xaml" />
+    </ResourceDictionary.MergedDictionaries>
+
+</ResourceDictionary>

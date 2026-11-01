@@ -1,0 +1,73 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Jvedio.Core —— 平台无关的核心库
+
+    目标框架选 netstandard2.0 而非 net472：
+    - 可被 .NET Framework 4.7.2（桌面端）与未来的 Android / 平板端同时引用
+    - netstandard2.0 支持 C# 7.3，与主项目 LangVersion 一致
+
+    设计边界（重要）：
+    本库**不得**引用以下依赖，否则将无法跨平台：
+    - SuperUtils / SuperControls.Style / JvedioLib（均为 net472 闭源程序集）
+    - 任何 System.Windows.* / WPF 类型
+
+    源文件采用 link 方式引用主项目中的文件，而不是复制一份：
+    保证「单一真相」，避免同一份逻辑出现两个版本。
+  -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <LangVersion>7.3</LangVersion>
+    <RootNamespace>Jvedio.Core</RootNamespace>
+    <AssemblyName>Jvedio.Core</AssemblyName>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <TreatWarningsAsErrors>false</TreatWarningsAsErrors>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- 枚举：无任何外部依赖 -->
+    <Compile Include="..\Jvedio\Core\Enums\DataType.cs" Link="Enums\DataType.cs" />
+    <Compile Include="..\Jvedio\Core\Enums\VideoType.cs" Link="Enums\VideoType.cs" />
+    <Compile Include="..\Jvedio\Core\Enums\ImageType.cs" Link="Enums\ImageType.cs" />
+    <Compile Include="..\Jvedio\Core\Enums\PathType.cs" Link="Enums\PathType.cs" />
+    <Compile Include="..\Jvedio\Core\Enums\DataBaseType.cs" Link="Enums\DataBaseType.cs" />
+    <Compile Include="..\Jvedio\Core\Enums\Gender.cs" Link="Enums\Gender.cs" />
+    <Compile Include="..\Jvedio\Core\Enums\SearchField.cs" Link="Enums\SearchField.cs" />
+    <Compile Include="..\Jvedio\Core\Enums\SearchMode.cs" Link="Enums\SearchMode.cs" />
+    <Compile Include="..\Jvedio\Core\Enums\ViewMode.cs" Link="Enums\ViewMode.cs" />
+    <Compile Include="..\Jvedio\Core\Enums\Language.cs" Link="Enums\Language.cs" />
+    <Compile Include="..\Jvedio\Core\Enums\AssociationType.cs" Link="Enums\AssociationType.cs" />
+    <Compile Include="..\Jvedio\Core\Enums\RelevanceType.cs" Link="Enums\RelevanceType.cs" />
+    <Compile Include="..\Jvedio\Core\Enums\DownLoadState.cs" Link="Enums\DownLoadState.cs" />
+    <Compile Include="..\Jvedio\Core\Enums\OpenPathType.cs" Link="Enums\OpenPathType.cs" />
+    <Compile Include="..\Jvedio\Core\Enums\ComicType.cs" Link="Enums\ComicType.cs" />
+    <Compile Include="..\Jvedio\Core\Enums\NotImportReason.cs" Link="Enums\NotImportReason.cs" />
+    <Compile Include="..\Jvedio\Core\Enums\WindowState.cs" Link="Enums\WindowState.cs" />
+    <Compile Include="..\Jvedio\Core\Enums\ThemeSingleColor.cs" Link="Enums\ThemeSingleColor.cs" />
+    <Compile Include="..\Jvedio\Core\Enums\TranslationPlatform.cs" Link="Enums\TranslationPlatform.cs" />
+
+    <!-- 数据记录与传输对象 -->
+    <Compile Include="..\Jvedio\Entity\Record\VideoRecord.cs" Link="Record\VideoRecord.cs" />
+    <Compile Include="..\Jvedio\Entity\Dto\VideoDto.cs" Link="Dto\VideoDto.cs" />
+
+    <!-- 基础设施 -->
+    <Compile Include="..\Jvedio\Core\DataBase\DataBaseGate.cs" Link="DataBase\DataBaseGate.cs" />
+    <Compile Include="..\Jvedio\Core\Utils\SafeAsync.cs" Link="Utils\SafeAsync.cs" />
+    <Compile Include="..\Jvedio\Core\Lan\HttpProtocol.cs" Link="Lan\HttpProtocol.cs" />
+
+    <!-- 通用数据结构 -->
+    <Compile Include="..\Jvedio\Entity\Base\ListNode.cs" Link="Base\ListNode.cs" />
+    <Compile Include="..\Jvedio\Core\Interfaces\IDictKeys.cs" Link="Interfaces\IDictKeys.cs" />
+
+    <!--
+      未纳入的文件及原因（供后续迁移参考）：
+      - Core\Exceptions\NotFoundException.cs —— 依赖闭源 SuperControls.Style.LangManager 做本地化
+      - Core\Lan\LanServer.cs —— 依赖 Jvedio.Mapper 与 Newtonsoft.Json，属应用层
+      - Core\DataBase\Tables\Sqlite.cs —— 建表 SQL 与具体数据库绑定，暂留桌面端
+      - 所有 Config\* —— 依赖 AbstractConfig / SQLite 读写，需先解耦配置存储
+    -->
+  </ItemGroup>
+
+</Project>

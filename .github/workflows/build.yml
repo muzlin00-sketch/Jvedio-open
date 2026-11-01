@@ -1,0 +1,32 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 准备 .NET SDK（构建 Jvedio.Core）
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: 构建（Release）
+        shell: pwsh
+        run: ./build.ps1 -Configuration Release
+
+      - name: 校验产物
+        shell: pwsh
+        run: |
+          $exe = 'Jvedio-WPF/Jvedio/bin/Release/Jvedio.exe'
+          if (-not (Test-Path -LiteralPath $exe)) { throw "构建产物缺失：$exe" }
+          $size = (Get-Item -LiteralPath $exe).Length
+          Write-Host "Jvedio.exe = $size 字节"
+          if ($size -lt 1MB) { throw "Jvedio.exe 体积异常（$size），构建可能未完成" }

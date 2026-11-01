@@ -1,0 +1,90 @@
+{
+  "_说明": [
+    "Jvedio 主题配置 —— 改完保存后重启程序生效",
+    "",
+    "格式：颜色写 #RRGGBB 或 #AARRGGBB（A 是透明度，可省略）",
+    "清空某个值或删掉该键，会退回内置默认值",
+    "",
+    "推荐做法：只改 accent 主色，其余自动协调；",
+    "若要整体换风格，再逐个调 bg / fg。"
+  ],
+
+  "预设": "莫兰迪浅绿",
+
+  "预设列表": {
+    "莫兰迪浅绿": {
+      "bg.base": "#F0F0EB",
+      "bg.subtle": "#F7F7F3",
+      "bg.raised": "#FFFFFF",
+      "fg.primary": "#3A3A35",
+      "fg.secondary": "#6E6E66",
+      "fg.muted": "#96968D",
+      "border": "#DCDCD5",
+      "accent": "#87A48E",
+      "accent.soft": "#C9DBD0",
+      "accent.wash": "#EDF3EF",
+      "sidebar": "#EDF3EF"
+    },
+    "莫兰迪浅粉": {
+      "bg.base": "#F2EFEE",
+      "bg.subtle": "#F8F6F5",
+      "bg.raised": "#FFFFFF",
+      "fg.primary": "#3D3736",
+      "fg.secondary": "#736A68",
+      "fg.muted": "#9B918F",
+      "border": "#E0D9D7",
+      "accent": "#B08085",
+      "accent.soft": "#E0C8CB",
+      "accent.wash": "#F7F0F1",
+      "sidebar": "#F7F0F1"
+    },
+    "莫兰迪浅蓝": {
+      "bg.base": "#EDEFF1",
+      "bg.subtle": "#F6F7F8",
+      "bg.raised": "#FFFFFF",
+      "fg.primary": "#35393C",
+      "fg.secondary": "#676D72",
+      "fg.muted": "#8F959A",
+      "border": "#D6DADE",
+      "accent": "#8095A3",
+      "accent.soft": "#C6D3DB",
+      "accent.wash": "#F0F4F6",
+      "sidebar": "#F0F4F6"
+    },
+    "暖砂": {
+      "bg.base": "#F2EFE9",
+      "bg.subtle": "#F9F7F2",
+      "bg.raised": "#FFFFFF",
+      "fg.primary": "#3C3830",
+      "fg.secondary": "#6E675C",
+      "fg.muted": "#9A9284",
+      "border": "#E1DACE",
+      "accent": "#C0AC8B",
+      "accent.soft": "#E6DCC8",
+      "accent.wash": "#F8F5EE",
+      "sidebar": "#F8F5EE"
+    }
+  },
+
+  "当前主题": {
+    "bg.base": "",
+    "bg.subtle": "",
+    "bg.raised": "",
+    "fg.primary": "",
+    "fg.secondary": "",
+    "fg.muted": "",
+    "border": "",
+    "accent": "",
+    "accent.soft": "",
+    "accent.wash": "",
+    "sidebar": ""
+  },
+
+  "界面": {
+    "圆角": 6,
+    "卡片圆角": 6,
+    "阴影强度": 0.10,
+    "字号缩放": 1.0,
+    "侧栏宽度": 200
+  }
+}

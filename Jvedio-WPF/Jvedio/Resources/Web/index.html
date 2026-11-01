@@ -1,0 +1,4819 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#EDF3EF">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<!-- 内联 favicon：避免浏览器自动请求 /favicon.ico 产生 404 -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2387A48E'/%3E%3Ctext x='16' y='23' font-size='19' font-weight='700' fill='white' text-anchor='middle' font-family='sans-serif'%3EJ%3C/text%3E%3C/svg%3E">
+<title>Jvedio</title>
+<style>
+/* ============================================================
+   设计 Token（与桌面端 CustomStyle/Tokens 保持同一套莫兰迪浅绿）
+   ============================================================ */
+:root {
+  /* 背景层级：浅色模式越上层越白 */
+  --bg-base:    #F0F0EB;
+  --bg-subtle:  #F7F7F3;
+  --bg-raised:  #FFFFFF;
+  --bg-side:    #EDF3EF;
+
+  /* 前景：深暖灰，不用纯黑 */
+  --fg-primary:   #3A3A35;
+  --fg-secondary: #6E6E66;
+  --fg-muted:     #96968D;
+
+  /* 边框：几乎不可见但能定形 */
+  --border:       #DCDCD5;
+  --border-soft:  #E7E7E1;
+
+  /* 强调色：全站唯一，灰调鼠尾草绿 */
+  --accent:       #87A48E;
+  --accent-deep:  #5A7A63;
+  --accent-soft:  #C9DBD0;
+  --accent-wash:  #EDF3EF;
+
+  /* 状态色 */
+  --tag-bg:       rgba(135, 164, 142, 0.16);
+  --tag-fg:       #5A7A63;
+
+  /* 间距（4px 基准） */
+  --sp-1: 4px;  --sp-2: 8px;  --sp-3: 12px;
+  --sp-4: 16px; --sp-5: 20px; --sp-6: 24px;
+
+  /* 圆角 */
+  --r-sm: 6px; --r-md: 10px; --r-lg: 14px;
+
+  /* 字号 */
+  --fs-caption: 12px;
+  --fs-body:    14px;
+  --fs-body-lg: 16px;
+  --fs-title:   18px;
+
+  --shadow-card: 0 1px 3px rgba(58,58,53,.06), 0 4px 12px rgba(58,58,53,.04);
+  --shadow-lift: 0 4px 16px rgba(58,58,53,.10);
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+
+html, body {
+  height: 100%;
+  background: var(--bg-base);
+  color: var(--fg-primary);
+  font-family: -apple-system, BlinkMacSystemFont, "HarmonyOS Sans SC", "Microsoft YaHei", "Segoe UI", sans-serif;
+  font-size: var(--fs-body);
+  line-height: 1.5;
+  overscroll-behavior-y: none;
+}
+
+/* 滚动条占位：让内容区在「有滚动条 / 无滚动条」两种状态下宽度一致，
+   不会因为滚动条出现而让最右列卡片突然被挤。
+   stable 表示始终预留该空间，避免加载过程中布局跳动。 */
+html {
+  scrollbar-gutter: stable;
+}
+
+/* ============================================================
+   顶栏：磨砂玻璃（sticky + backdrop-filter）
+   ============================================================ */
+/* app 容器：作为查询容器，同时承载所有流式尺寸变量。
+   为什么变量定义在 .app 而不是 :root：
+   cqi 是「查询容器宽度的 1%」，必须在容器内部求值。
+   若写在 :root，:root 不在任何查询容器内，cqi 无参照，整串变量会失效。 */
+.app {
+  width: 100%;
+  min-height: 100vh;
+  min-height: 100dvh;   /* 移动端地址栏收起时更准确 */
+
+  /* 声明查询容器：子元素可用 cqi/cqw 单位 */
+  container-type: inline-size;
+  container-name: app;
+
+  /* 兜底：老浏览器不支持容器查询时退回视口单位 */
+  --u: 1vw;
+
+  /* 卡片最小宽度：窄屏 136px（保证 320px 也能 2 列），宽屏最多 200px。
+     这个值同时决定「一行能塞几列」——它是网格唯一的尺寸旋钮。 */
+  --card-min: clamp(136px, calc(9 * var(--u) + 100px), 200px);
+
+  /* 间距：8px → 20px 连续缩放 */
+  --gap: clamp(8px, calc(1.2 * var(--u) + 4px), 20px);
+  --pad: clamp(10px, calc(1.5 * var(--u) + 6px), 24px);
+
+  /* 圆角：6px → 12px 连续缩放 */
+  --r-md: clamp(6px, calc(0.5 * var(--u) + 4px), 12px);
+  --r-lg: clamp(8px, calc(0.8 * var(--u) + 6px), 16px);
+
+  /* 字号：连续缩放，避免小屏过挤 / 大屏过小 */
+  --fs-caption: clamp(11px, calc(0.35 * var(--u) + 10px), 13px);
+  --fs-body:    clamp(13px, calc(0.4 * var(--u) + 12px), 15px);
+  --fs-body-lg: clamp(15px, calc(0.5 * var(--u) + 14px), 18px);
+  --fs-title:   clamp(17px, calc(0.7 * var(--u) + 15px), 22px);
+}
+
+/* 支持容器查询时，把 --u 换成容器宽度单位（真正解决滚动条问题） */
+@supports (container-type: inline-size) {
+  .app { --u: 1cqi; }
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  /* 顶栏内边距跟着容器缩放，窄屏更紧凑 */
+  padding: calc(var(--safe-top) + var(--sp-2)) var(--sp-4) var(--sp-2);
+  background: rgba(247, 247, 243, 0.82);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--border-soft);
+}
+
+/* 窄屏（手机）顶栏进一步压缩，把高度让给内容 */
+@container app (max-width: 480px) {
+  .topbar { padding-left: var(--sp-3); padding-right: var(--sp-3); }
+  .libs { margin-top: 6px; }
+  .view-tabs { margin-top: 4px; }
+}
+
+.topbar-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.logo {
+  font-size: var(--fs-title);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--fg-primary);
+  flex-shrink: 0;
+}
+.logo span { color: var(--accent-deep); }
+
+.count-badge {
+  font-size: var(--fs-caption);
+  color: var(--fg-muted);
+  background: var(--accent-wash);
+  padding: 2px var(--sp-2);
+  border-radius: 100px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 搜索框 */
+.search-wrap {
+  margin-top: var(--sp-3);
+  position: relative;
+}
+.search-input {
+  width: 100%;
+  height: 40px;
+  padding: 0 var(--sp-4) 0 38px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-raised);
+  color: var(--fg-primary);
+  font-size: var(--fs-body);
+  outline: none;
+  transition: border-color .15s, box-shadow .15s;
+  -webkit-appearance: none;
+}
+.search-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-wash);
+}
+.search-input::placeholder { color: var(--fg-muted); }
+.search-icon {
+  position: absolute;
+  left: var(--sp-3);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 16px; height: 16px;
+  color: var(--fg-muted);
+  pointer-events: none;
+}
+
+/* 库筛选 */
+/* 库筛选与视图标签合并到一行：两者都是「切换列表内容」的控件，
+   放同一行既省高度也更符合直觉。空间不足时各自横向滚动。 */
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-2);
+  overflow: hidden;
+}
+
+.libs {
+  display: flex;
+  gap: var(--sp-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  flex-shrink: 0;
+  max-width: 55%;
+}
+.libs::-webkit-scrollbar { display: none; }
+
+.lib-chip {
+  flex-shrink: 0;
+  padding: var(--sp-1) var(--sp-3);
+  border-radius: 100px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--fg-secondary);
+  font-size: var(--fs-caption);
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.lib-chip.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* ============================================================
+   卡片网格
+   ============================================================ */
+/* ============================================================
+   流式自适应（Fluid Scaling）
+
+   为什么不用断点阶梯：
+   断点是「离散跳变」——每加一档要手写一条 @media，
+   且档位之间的设备（折叠屏、平板分屏、桌面小窗）永远覆盖不全。
+
+   为什么用容器查询单位 cqi 而不是 vw：
+   vw 是「视口宽度的 1%」，包含滚动条占的那 15-17px。
+   桌面浏览器一旦出现纵向滚动条，vw 算出来的尺寸就会比真实可用宽度大，
+   表现正是「最右边一列卡片被截断」。
+   cqi 是「查询容器内容宽度的 1%」，天然排除滚动条，且能正确处理
+   平板分屏、侧边栏挤压等场景。这是现代浏览器（2023+）的标准能力。
+
+   三层配合：
+   1. cqi + clamp() 让字号、间距、圆角、卡片宽连续缩放，无跳变
+   2. auto-fill + minmax() 让列数由「可用宽度 ÷ 最小卡片宽」自然决定
+   3. 只保留必要的方向性查询（横屏压缩顶栏），那属于布局语义而非尺寸
+
+   结果：任何宽度都是连续过渡，不存在「没覆盖到」的尺寸，
+   也不会因滚动条而溢出。
+   ============================================================ */
+
+.grid {
+  display: grid;
+  /* ------------------------------------------------------------
+     自适应网格：卡片大小随容器宽度连续变化，且尽量填满整行
+
+     为什么不用 minmax(MIN, 1fr)：
+     1fr 会把列拉满，卡片宽度由「(容器 - 间隙) ÷ 列数」强行均分，
+     列数一变宽度就跳变，且内容少的卡片被撑出大片空白。
+
+     为什么不用 minmax(MIN, MAX)：
+     列数由上限 MAX 决定，MIN 不起作用——窄屏会退化成 1 列，
+     宽屏右侧又会空出很大一块（实测 2560px 空 533px）。
+
+     最终方案：minmax(MIN, 1fr) 保证列数由 MIN 决定（卡片永远 ≥ MIN，
+     一行尽可能多塞），再用 justify-content: center 让最后一列
+     的余量均分到两侧，而不是堆在右边。
+     卡片自身用 align-self: start 按内容定高，不被同行拉伸。
+     ------------------------------------------------------------ */
+  grid-template-columns: repeat(auto-fill, minmax(var(--card-min), 1fr));
+  gap: var(--gap);
+  justify-content: center;
+  padding: var(--pad);
+  padding-bottom: calc(var(--pad) * 2 + var(--safe-bottom));
+}
+
+/* 超宽屏：限制内容宽度并居中，避免一行 12 张卡把眼睛拉散 */
+@media (min-width: 1600px) {
+  .grid {
+    max-width: 1760px;
+    margin: 0 auto;
+  }
+}
+
+/* 横屏矮视口：大幅压缩顶栏，把高度让给内容。
+   这是方向语义（横屏时纵向空间最宝贵），保留 media query。 */
+@media (max-height: 560px) and (orientation: landscape) {
+  .topbar {
+    padding-top: calc(var(--safe-top) + 6px);
+    padding-bottom: 6px;
+  }
+  .search-wrap { margin-top: 6px; }
+  .search-input { height: 34px; }
+  .libs { margin-top: 6px; }
+  .view-tabs { margin-top: 4px; }
+  .lib-chip { padding: 3px 10px; }
+  .view-tab { padding: 3px 10px; }
+  .icon-btn { width: 32px; height: 32px; }
+}
+
+.card {
+  background: var(--bg-raised);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  box-shadow: var(--shadow-card);
+  cursor: pointer;
+  transition: transform .18s ease, box-shadow .18s ease;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  /* 同行卡片等高（网格默认行为 stretch），
+     视觉上整齐；内容区用 flex 撑满剩余高度，
+     避免内容少的卡片底部出现空白断层。 */
+  height: 100%;
+  /* 移动端：去掉 300ms 点击延迟，并禁止双击缩放。
+     没有这个属性时，快速连点卡片会被浏览器判成 double-tap 缩放，
+     页面会短暂「跳一下」——用户感知就是「点了刷新」。 */
+  touch-action: manipulation;
+  /* 长按不选中文字 / 不弹图片保存菜单 */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.card:active { transform: scale(.97); }
+
+.card-cover {
+  position: relative;
+  width: 100%;
+  /* 封面比例与片库实际素材精确对齐。
+     实测 SmallPic 随机抽样 500 张（共 1349 张）：
+     中位 0.7350，众数 0.73（450/500 张），最小 0.7034。
+     原来写 3/4（0.75）会横向裁掉约 2%，
+     用 0.735 后与素材完全吻合，封面内容完整可见。 */
+  aspect-ratio: 735 / 1000;
+  /* 不参与 flex 压缩：封面永远保持该比例，
+     多出来的高度全部给下方的信息区 */
+  flex: 0 0 auto;
+  background: var(--bg-subtle);
+  overflow: hidden;
+}
+.card-cover img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+  opacity: 0;
+  transition: opacity .3s;
+}
+.card-cover img.loaded { opacity: 1; }
+
+/* 骨架占位 */
+.card-cover::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, var(--bg-subtle) 25%, #EFEFEA 50%, var(--bg-subtle) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+.card-cover.ready::before { display: none; }
+@keyframes shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* 缺图占位：短视频等记录本就没有封面 */
+.cover-placeholder {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--border);
+  background: var(--bg-subtle);
+}
+.cover-placeholder svg { width: 32px; height: 32px; }
+
+/* 标签 */
+.card-tags {
+  position: absolute;
+  right: var(--sp-2);
+  bottom: var(--sp-2);
+  display: flex;
+  gap: var(--sp-1);
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.tag {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: var(--r-sm);
+  background: rgba(255,255,255,.92);
+  color: var(--tag-fg);
+  font-weight: 500;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.card-info {
+  padding: var(--sp-2) var(--sp-3) var(--sp-3);
+  /* 撑满封面之外的剩余高度：卡片等高时，
+     内容少的那张把空白留在自己内部，不会出现「半截卡片」的观感 */
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  /* 内容从顶部开始排，多余空间留在底部（而不是把文字撑散） */
+  justify-content: flex-start;
+}
+.card-vid {
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--fg-primary);
+  letter-spacing: 0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* 无识别码时用正常字体 + 两行截断（文件名通常比识别码长） */
+.card-vid.is-text {
+  font-family: inherit;
+  font-size: var(--fs-caption);
+  font-weight: 500;
+  line-height: 1.35;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+.card-date {
+  font-size: var(--fs-caption);
+  color: var(--fg-muted);
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+.card-title {
+  font-size: var(--fs-caption);
+  color: var(--fg-secondary);
+  margin-top: var(--sp-1);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  line-height: 1.4;
+}
+
+/* ============================================================
+   加载 / 空态
+   ============================================================ */
+.loading, .empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: var(--sp-6) 0;
+  color: var(--fg-muted);
+  font-size: var(--fs-caption);
+}
+.spinner {
+  width: 22px; height: 22px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  margin: 0 auto var(--sp-2);
+  animation: spin .7s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ============================================================
+   详情页（点击卡片文字区进入）
+   ============================================================ */
+.detail-page {
+  position: fixed;
+  inset: 0;
+  /* 高于播放页：详情页总是「从列表进入」，是较后打开的一层。
+     若低于播放页，从详情页点播放的瞬间会看到播放页被压在下面一闪。 */
+  z-index: 210;
+  background: var(--bg-base);
+  display: none;
+  flex-direction: column;
+  opacity: 0;
+  transition: opacity .2s;
+}
+.detail-page.show { display: flex; opacity: 1; }
+
+.detail-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: calc(var(--safe-top) + var(--sp-2)) var(--sp-4);
+  background: rgba(247, 247, 243, .92);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--border-soft);
+  /* 固定高度，不参与 flex 压缩——否则内容多时头部会被压扁 */
+  flex-shrink: 0;
+}
+
+/* 头部内容与正文同宽同边距：
+   正文有 padding，头部外层也要有同样的 padding，
+   否则窄屏下返回按钮会比正文更靠左，看起来错位。 */
+.detail-head-inner {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+.detail-back {
+  background: var(--bg-raised);
+  color: var(--fg-primary);
+  border: 1px solid var(--border);
+}
+.detail-head-vid {
+  flex: 1;
+  min-width: 0;
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-weight: 700;
+  font-size: var(--fs-body-lg);
+  color: var(--fg-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.detail-play-top {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 7px var(--sp-3);
+  border: none;
+  border-radius: 100px;
+  background: var(--accent);
+  color: #fff;
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.detail-play-top svg { width: 15px; height: 15px; }
+.detail-play-top:active { background: var(--accent-deep); }
+
+.detail-body {
+  flex: 1;
+  /* min-height: 0 是必须的。
+     flex 子项默认 min-height: auto，意味着「不能比内容更矮」，
+     于是内容一多就把容器撑破，overflow-y: auto 永远不触发——
+     表现为详情页根本滚不动。
+     显式设 0 后，容器才允许被压缩，滚动条才会出现。 */
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--sp-4);
+  padding-bottom: calc(var(--sp-6) + var(--safe-bottom));
+  /* 宽屏下限制正文宽度并居中，避免一行拉太长。
+     上限给到 1400px：1440 屏左右各留 20px 就基本铺满，
+     不像之前 900px 那样在宽屏上左右各空出两三百像素。
+     移动端 width:100% 仍然生效，不受影响。 */
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* 顶部：大图 + 基本信息 */
+.detail-hero {
+  display: flex;
+  gap: var(--sp-4);
+  margin-bottom: var(--sp-4);
+  align-items: flex-start;
+}
+/* 宽屏下 hero 不要铺满整行。
+   封面固定 190px，右侧信息只有四五短行，
+   铺满会让文字挤在最左、右边空出近千像素。
+   收窄到 680px 后，封面与文字靠在一起，读起来是个整体。
+   680 而不是 760：768px 屏上 760 几乎等于全宽，等于没设。 */
+@media (min-width: 720px) {
+  .detail-hero { max-width: 680px; }
+}
+.detail-cover {
+  width: clamp(110px, 30%, 190px);
+  flex-shrink: 0;
+  aspect-ratio: 735 / 1000;
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--bg-subtle);
+  box-shadow: var(--shadow-card);
+}
+.detail-cover img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.detail-hero-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.detail-title {
+  font-size: var(--fs-body-lg);
+  font-weight: 600;
+  color: var(--fg-primary);
+  line-height: 1.4;
+}
+.detail-meta-line {
+  font-size: var(--fs-caption);
+  color: var(--fg-secondary);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-1) var(--sp-3);
+}
+.detail-meta-line span { white-space: nowrap; }
+
+/* 区块 */
+.detail-section { margin-top: var(--sp-5); }
+.detail-section-title {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--fg-primary);
+  margin-bottom: var(--sp-2);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.detail-section-title::before {
+  content: '';
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.detail-text {
+  font-size: var(--fs-caption);
+  color: var(--fg-secondary);
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* 标签墙 */
+.detail-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+.detail-chip {
+  padding: 4px var(--sp-3);
+  border-radius: 100px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  color: var(--fg-secondary);
+  font-size: var(--fs-caption);
+}
+
+/* 演员 */
+.detail-actors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-3);
+}
+.detail-actor {
+  width: 72px;
+  text-align: center;
+}
+.detail-actor img {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg-subtle);
+  display: block;
+}
+.detail-actor-name {
+  font-size: 11px;
+  color: var(--fg-secondary);
+  margin-top: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 内容截图 */
+.detail-shots {
+  display: grid;
+  /* 移动端下限 140px 在 320px 屏只剩 1 列（可用宽 273px，140×2+8=288 放不下）。
+     降到 120px 后 320 屏能排 2 列（120×2+8=248 < 273）。 */
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: var(--sp-2);
+}
+/* 宽屏下固定 6 列：
+   auto-fill 在 1400px 会排到 7 列，12 张图变成「7+5」很散。
+   6 列正好 2 行排满；单张约 215px，密度比 4 列的 340px 舒服得多。 */
+@media (min-width: 720px) {
+  .detail-shots { grid-template-columns: repeat(6, 1fr); gap: var(--sp-2); }
+}
+@media (min-width: 1200px) {
+  .detail-shots { gap: var(--sp-3); }
+}
+.detail-shot {
+  aspect-ratio: 16 / 9;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background: var(--bg-subtle);
+  cursor: pointer;
+  position: relative;
+}
+/* 加载中的骨架微光，让「正在拉图」和「没有图」在视觉上可区分 */
+.detail-shot::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, var(--bg-subtle) 25%, #EFEFEA 50%, var(--bg-subtle) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s infinite;
+}
+.detail-shot.ok::before { display: none; }
+.detail-shot img {
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+  opacity: 0;
+  transition: opacity .25s;
+}
+.detail-shot.ok img { opacity: 1; }
+.detail-shot:active { opacity: .85; }
+.detail-shot.failed { display: none; }
+
+/* 底部主操作 */
+.detail-actions {
+  display: flex;
+  gap: var(--sp-3);
+  margin-top: var(--sp-5);
+  flex-wrap: wrap;
+  align-items: center;
+}
+.detail-play-btn {
+  flex: 1;
+  min-width: 140px;
+  height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--sp-2);
+  border: none;
+  border-radius: var(--r-md);
+  background: var(--accent);
+  color: #fff;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  cursor: pointer;
+}
+.detail-play-btn svg { width: 19px; height: 19px; }
+.detail-play-btn:active { background: var(--accent-deep); }
+
+/* 详情页的投屏按钮：与播放主按钮并排，但视觉上是次要操作 */
+.detail-cast-btn {
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-raised);
+  color: var(--fg-primary);
+  cursor: pointer;
+}
+.detail-cast-btn svg { width: 20px; height: 20px; }
+.detail-cast-btn:active { background: var(--bg-subtle); }
+
+/* 宽屏下播放按钮不该拉满整行。
+   手机上 flex:1 铺满是对的（好点），但 1400px 宽时会被拉成一条
+   700px 的长条，视觉上很怪。给个上限，并靠左对齐。 */
+@media (min-width: 720px) {
+  .detail-play-btn { flex: 0 0 auto; width: 220px; }
+  .detail-actions { justify-content: flex-start; }
+}
+
+/* 详情页里的星星用深色（浅底） */
+.detail-actions .actions-row { margin-top: 0; }
+.detail-actions .star { color: var(--border); }
+.detail-actions .star.on { color: #C9A961; }
+.detail-actions .rating-text { color: var(--fg-secondary); }
+.detail-actions .fav-btn {
+  border-color: var(--border);
+  background: var(--bg-raised);
+  color: var(--fg-secondary);
+}
+.detail-actions .fav-btn.on {
+  background: rgba(201, 169, 97, .14);
+  border-color: rgba(201, 169, 97, .5);
+  color: #A8863F;
+}
+
+/* 大图预览遮罩 */
+.shot-viewer {
+  position: fixed;
+  inset: 0;
+  z-index: 320;
+  background: rgba(0, 0, 0, .92);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-4);
+}
+.shot-viewer.show { display: flex; }
+.shot-viewer img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+/* ============================================================
+   播放页（全屏覆盖）
+   ============================================================ */
+.player-page {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: #14140F;
+  display: none;
+  flex-direction: column;
+  opacity: 0;
+  transition: opacity .22s;
+}
+.player-page.show { display: flex; opacity: 1; }
+
+.player-head {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: calc(var(--safe-top) + var(--sp-2)) var(--sp-3);
+  color: #EDEAE6;
+  flex-shrink: 0;
+}
+.back-btn {
+  width: 38px; height: 38px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: rgba(255,255,255,.1);
+  border-radius: var(--r-sm);
+  color: #EDEAE6;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.back-btn:active { background: rgba(255,255,255,.18); }
+.player-vid {
+  font-family: Consolas, monospace;
+  font-weight: 700;
+  font-size: var(--fs-body-lg);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  /* 撑满中间，把投屏按钮推到最右 */
+  flex: 1;
+  min-width: 0;
+}
+
+/* 播放页投屏按钮 */
+.cast-btn {
+  width: 38px; height: 38px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: rgba(255,255,255,.1);
+  border-radius: var(--r-sm);
+  color: #EDEAE6;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.cast-btn svg { width: 19px; height: 19px; }
+.cast-btn:active { background: rgba(255,255,255,.18); }
+/* 已投屏时高亮，让人一眼看出当前在投 */
+.cast-btn.on {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ============================================================
+   投屏选择面板
+   ============================================================ */
+.cast-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 260;
+  background: rgba(20,20,15,.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s;
+}
+.cast-mask.show { opacity: 1; pointer-events: auto; }
+
+.cast-sheet {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 261;
+  background: var(--bg-base);
+  border-radius: 18px 18px 0 0;
+  padding: 0 var(--sp-4) calc(var(--sp-4) + var(--safe-bottom));
+  max-height: 70vh;
+  display: flex;
+  flex-direction: column;
+  transform: translateY(100%);
+  transition: transform .26s cubic-bezier(.32,.72,0,1);
+}
+.cast-sheet.show { transform: translateY(0); }
+
+/* 桌面端居中显示 */
+@media (min-width: 720px) {
+  .cast-sheet {
+    left: 50%; right: auto; bottom: auto; top: 50%;
+    width: min(480px, 90vw);
+    border-radius: var(--r-lg);
+    transform: translate(-50%, -46%);
+    opacity: 0;
+  }
+  .cast-sheet.show { transform: translate(-50%, -50%); opacity: 1; }
+}
+
+.cast-handle {
+  width: 36px; height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  margin: var(--sp-2) auto var(--sp-1);
+  flex-shrink: 0;
+}
+@media (min-width: 720px) { .cast-handle { display: none; } }
+
+.cast-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-3) 0 var(--sp-2);
+  flex-shrink: 0;
+}
+.cast-title {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--fg-primary);
+}
+.cast-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: none;
+  background: none;
+  color: var(--accent-deep);
+  font-size: var(--fs-caption);
+  cursor: pointer;
+  padding: 4px 6px;
+}
+.cast-refresh svg { width: 14px; height: 14px; }
+.cast-refresh.spinning svg { animation: spin .8s linear infinite; }
+
+.cast-list {
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1;
+  padding-bottom: var(--sp-2);
+}
+
+.cast-item {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border-radius: var(--r-md);
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+.cast-item:active { background: var(--bg-subtle); }
+.cast-item.on {
+  background: var(--bg-raised);
+  border-color: var(--accent);
+}
+.cast-item-icon {
+  width: 38px; height: 38px;
+  border-radius: var(--r-sm);
+  background: var(--bg-subtle);
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--fg-secondary);
+}
+.cast-item-icon svg { width: 20px; height: 20px; }
+.cast-item.on .cast-item-icon { background: var(--accent); color: #fff; }
+.cast-item-main { flex: 1; min-width: 0; }
+.cast-item-name {
+  font-size: var(--fs-body);
+  color: var(--fg-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cast-item-sub {
+  font-size: 11px;
+  color: var(--fg-secondary);
+  margin-top: 2px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cast-item-state {
+  font-size: var(--fs-caption);
+  color: var(--accent-deep);
+  flex-shrink: 0;
+}
+
+.cast-tip {
+  padding: var(--sp-4) 0;
+  text-align: center;
+  font-size: var(--fs-caption);
+  color: var(--fg-secondary);
+  flex-shrink: 0;
+}
+
+/* 轻量提示条 */
+.toast-item {
+  position: fixed;
+  left: 50%;
+  bottom: calc(72px + var(--safe-bottom));
+  z-index: 400;
+  transform: translate(-50%, 12px);
+  max-width: 82vw;
+  padding: 10px var(--sp-4);
+  border-radius: 100px;
+  background: rgba(38, 38, 32, .92);
+  backdrop-filter: saturate(180%) blur(12px);
+  -webkit-backdrop-filter: saturate(180%) blur(12px);
+  color: #F2F0EC;
+  font-size: var(--fs-caption);
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .22s, transform .22s;
+}
+.toast-item.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+/* ============================================================
+   投屏遥控界面（播放页在投屏时的形态）
+   —— 参考 YouTube / Netflix / B 站：投屏后播放页不关闭，
+   视频区换成设备状态，进度与按键继续可用来遥控远端。
+   ============================================================ */
+.cast-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  width: 100%;
+  max-width: 400px;
+  padding: var(--sp-5) var(--sp-4);
+  color: #EDEAE6;
+  text-align: center;
+}
+
+.cast-panel-ring {
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(255,255,255,.07);
+  border: 2px solid var(--accent);
+  color: var(--accent);
+}
+.cast-panel-ring svg { width: 30px; height: 30px; }
+
+.cast-panel-device {
+  font-size: var(--fs-body-lg);
+  font-weight: 600;
+  color: #EDEAE6;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  white-space: nowrap;
+}
+
+.cast-panel-state {
+  font-size: var(--fs-caption);
+  color: #9A9690;
+  margin-top: -6px;
+}
+
+.cast-progress {
+  width: 100%;
+  margin-top: var(--sp-2);
+  /* 进度条本身只有 4px 高，手指按不准。
+     视觉保持细线，用上下 padding 把触摸区撑到 ~28px。 */
+  padding: 12px 0 4px;
+  box-sizing: border-box;
+}
+.cast-progress-track {
+  position: relative;
+  height: 4px;
+  border-radius: 2px;
+  background: rgba(255,255,255,.16);
+  cursor: pointer;
+  /* 触摸时不要触发页面滚动/缩放，否则拖不动 */
+  touch-action: none;
+}
+.cast-progress-track.dragging { /* 拖拽中加粗，给反馈 */ }
+.cast-progress-track.dragging .cast-progress-bar { background: #fff; }
+.cast-progress-bar {
+  position: relative;
+  height: 100%;
+  width: 0;
+  border-radius: 2px;
+  background: var(--accent);
+  /* 拖拽时不要过渡，否则跟手有延迟；只有轮询更新时才平滑 */
+  transition: width .5s linear;
+}
+.cast-progress-track.dragging .cast-progress-bar { transition: none; }
+
+/* 拖拽把手 */
+.cast-progress-knob {
+  position: absolute;
+  right: -6px;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 4px rgba(0,0,0,.4);
+  opacity: 0;
+  transition: opacity .18s;
+  pointer-events: none;
+}
+.cast-progress-track:hover .cast-progress-knob,
+.cast-progress-track.dragging .cast-progress-knob {
+  opacity: 1;
+}
+/* 触屏设备没有 hover，始终显示把手（更明确可拖） */
+@media (hover: none) {
+  .cast-progress-knob { opacity: 1; }
+}
+.cast-progress-time {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  color: #9A9690;
+}
+.cast-progress-sep { opacity: .5; }
+
+.cast-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-5);
+  margin-top: var(--sp-2);
+}
+.cast-ctrl-btn {
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255,255,255,.1);
+  color: #EDEAE6;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+.cast-ctrl-btn svg { width: 24px; height: 24px; }
+.cast-ctrl-btn:active { background: rgba(255,255,255,.2); }
+
+.cast-disconnect {
+  margin-top: var(--sp-4);
+  padding: 10px var(--sp-5);
+  border-radius: 100px;
+  border: 1px solid rgba(255,255,255,.24);
+  background: transparent;
+  color: #EDEAE6;
+  font-size: var(--fs-caption);
+  cursor: pointer;
+}
+.cast-disconnect:active { background: rgba(255,255,255,.12); }
+
+.video-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+.video-wrap video {
+  width: 100%;
+  max-height: 100%;
+  display: block;
+  background: #000;
+}
+
+/* ============================================================
+   自写播放控件
+
+   为什么不用 <video controls> 的原生控件：
+   移动端（尤其 Android Chrome / 鸿蒙）进入全屏后，
+   原生控件会在几秒后自动隐藏，进度条和快进随之消失，
+   用户无法拖动进度——这正是要解决的问题。
+
+   为什么不用 Plyr / video.js：
+   手机是通过 http://<局域网IP>:5200 访问的，
+   离线或关流量时访问不到 CDN；把库内联进来要 100KB+，
+   而定制度要求又高（要贴合莫兰迪配色），自写更可控。
+   ============================================================ */
+.vc {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  /* 底部控件贴底，顶部控件贴顶。
+     注意：不能用 space-between——非全屏时 .vc-top 是 display:none，
+     只剩 .vc-bottom 一个流式子元素，space-between 会把它顶到最上面，
+     导致进度条跑到画面顶部。
+     改用 margin-top:auto 让底部条自己贴底，与顶部是否隐藏无关。 */
+  justify-content: flex-end;
+  opacity: 1;
+  transition: opacity .25s;
+  /* 让点击穿透到 video 之外，仅控件本身接收事件 */
+  pointer-events: none;
+}
+.vc.hidden { opacity: 0; }
+
+.vc-top {
+  display: none;   /* 非全屏时由页面自身的 player-head 承担标题与返回 */
+  align-items: flex-start;
+  gap: var(--sp-2);
+  padding: calc(var(--safe-top) + 10px) 12px 10px;
+  background: linear-gradient(to bottom, rgba(0,0,0,.62), rgba(0,0,0,0));
+  pointer-events: auto;
+  /* 容器是 flex-end，用 auto 外边距把顶栏推回顶部 */
+  margin-bottom: auto;
+}
+/* 全屏时页面顶栏不可见，改由控件层提供标题与关闭按钮 */
+.video-wrap:fullscreen .vc-top,
+.video-wrap:-webkit-full-screen .vc-top { display: flex; }
+
+.vc-close {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0,0,0,.4);
+  color: #fff;
+  cursor: pointer;
+  padding: 0;
+}
+.vc-close svg { width: 20px; height: 20px; }
+
+.vc-title {
+  flex: 1;
+  min-width: 0;
+  color: #fff;
+  font-size: var(--fs-caption);
+  line-height: 36px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px rgba(0,0,0,.6);
+}
+
+.vc-bottom {
+  padding: 10px 12px calc(var(--safe-bottom) + 10px);
+  background: linear-gradient(to top, rgba(0,0,0,.72), rgba(0,0,0,0));
+  pointer-events: auto;
+}
+
+/* 进度条：默认细线，交互时加粗并浮出滑块。
+   触摸目标外扩到 20px 高，手指好按。 */
+.vc-progress {
+  position: relative;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  touch-action: none;
+}
+.vc-track {
+  position: relative;
+  width: 100%;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255,255,255,.24);
+  transition: height .16s ease;
+}
+/* 悬停/拖动时轨道加粗，滑块浮现 */
+.vc-progress:hover .vc-track,
+.vc-progress.dragging .vc-track { height: 5px; }
+
+.vc-buffer {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 0;
+  border-radius: 2px;
+  background: rgba(255,255,255,.32);
+}
+.vc-played {
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 0;
+  border-radius: 2px;
+  background: var(--accent);
+}
+/* 滑块平时隐藏，只在悬停/拖动时出现，画面更干净 */
+.vc-thumb {
+  position: absolute;
+  top: 50%;
+  width: 13px;
+  height: 13px;
+  margin-left: -6.5px;
+  border-radius: 50%;
+  background: #fff;
+  transform: translateY(-50%) scale(0);
+  transition: transform .16s ease;
+  box-shadow: 0 1px 5px rgba(0,0,0,.5);
+}
+.vc-progress:hover .vc-thumb,
+.vc-progress.dragging .vc-thumb { transform: translateY(-50%) scale(1); }
+
+/* 拖动时显示的时间气泡 */
+.vc-bubble {
+  position: absolute;
+  bottom: 26px;
+  transform: translateX(-50%);
+  padding: 3px 8px;
+  border-radius: 5px;
+  background: rgba(0,0,0,.8);
+  color: #fff;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.vc-progress.dragging .vc-bubble { opacity: 1; }
+
+.vc-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  margin-top: 6px;
+}
+
+.vc-btn {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #fff;
+  cursor: pointer;
+  padding: 0;
+  transition: background .15s;
+}
+.vc-btn svg { width: 22px; height: 22px; }
+.vc-btn:active { background: rgba(255,255,255,.16); }
+.vc-btn.play svg { width: 26px; height: 26px; }
+
+.vc-time {
+  color: #fff;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 3px rgba(0,0,0,.6);
+  white-space: nowrap;
+}
+.vc-time .sep { opacity: .55; margin: 0 3px; }
+
+.vc-spacer { flex: 1; }
+
+/* 倍速 */
+.vc-rate {
+  min-width: 44px;
+  height: 34px;
+  padding: 0 8px;
+  border: none;
+  border-radius: 5px;
+  background: rgba(255,255,255,.14);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* 中央大播放按钮（暂停时显示） */
+.vc-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 50%;
+  background: rgba(0,0,0,.46);
+  color: #fff;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: opacity .2s, transform .2s;
+}
+.vc-center svg { width: 30px; height: 30px; margin-left: 3px; }
+.vc-center.hide { opacity: 0; pointer-events: none; transform: translate(-50%, -50%) scale(.86); }
+
+/* 加载中 */
+.vc-loading {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 34px;
+  height: 34px;
+  border: 3px solid rgba(255,255,255,.24);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: vcspin .8s linear infinite;
+  pointer-events: none;
+}
+@keyframes vcspin { to { transform: translate(-50%, -50%) rotate(360deg); } }
+
+/* 双击左右两侧快退/快进 10 秒的视觉反馈 */
+.vc-skip {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: rgba(0,0,0,.58);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .22s;
+}
+.vc-skip.left { left: 10%; }
+.vc-skip.right { right: 10%; }
+.vc-skip.show { opacity: 1; }
+
+/* 横向滑动时的位置预览浮层
+   放画面上方 18% 处：太低会和画面内容/水印打架，
+   太高会被顶部标题栏压住。全屏时同样适用。 */
+.vc-swipe-tip {
+  position: absolute;
+  top: 18%;
+  left: 50%;
+  transform: translate(-50%, -6px);
+  padding: 9px 18px;
+  border-radius: 12px;
+  background: rgba(0,0,0,.72);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #fff;
+  text-align: center;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .18s, transform .18s;
+  white-space: nowrap;
+  z-index: 6;
+}
+.vc-swipe-tip.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+.vc-swipe-tip-time {
+  font-family: Consolas, monospace;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: .5px;
+}
+.vc-swipe-tip-delta {
+  margin-top: 2px;
+  font-family: Consolas, monospace;
+  font-size: 12px;
+  font-weight: 600;
+}
+.vc-swipe-tip-delta.fwd { color: #7BD88F; }
+.vc-swipe-tip-delta.back { color: #FFA857; }
+
+/* 滑动中：把进度条保持在可见状态，让用户看到位置变化 */
+.vc.swiping .vc-bottom { opacity: 1; pointer-events: auto; }
+
+/* 真·全屏时（Fullscreen API），控件铺满 */
+.video-wrap:fullscreen .vc,
+.video-wrap:-webkit-full-screen .vc { position: absolute; inset: 0; }
+
+.player-meta {
+  flex-shrink: 0;
+  padding: var(--sp-3) var(--sp-4) calc(var(--sp-4) + var(--safe-bottom));
+  color: #C9C6C1;
+  font-size: var(--fs-caption);
+  max-height: 34vh;
+  /* 同为 flex 子项，min-height:auto 会让 max-height 失效（撑破布局），
+     设 0 后才会真正在 34vh 处截断并内部滚动。 */
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.player-title {
+  color: #EDEAE6;
+  font-size: var(--fs-body);
+  margin-bottom: var(--sp-2);
+  line-height: 1.45;
+}
+.meta-row {
+  display: flex;
+  gap: var(--sp-2);
+  flex-wrap: wrap;
+  margin-top: var(--sp-2);
+}
+.meta-chip {
+  padding: 2px var(--sp-2);
+  border-radius: var(--r-sm);
+  background: rgba(255,255,255,.08);
+  color: #B8B4AE;
+  font-size: 11px;
+}
+
+/* 播放失败提示 */
+.player-error {
+  padding: var(--sp-4);
+  color: #D9A8A0;
+  font-size: var(--fs-caption);
+  text-align: center;
+  line-height: 1.6;
+}
+
+/* 顶部加载进度条 */
+.progress-bar {
+  position: fixed;
+  top: 0; left: 0;
+  height: 2px;
+  background: var(--accent);
+  width: 0;
+  z-index: 300;
+  transition: width .2s, opacity .3s;
+  opacity: 0;
+}
+.progress-bar.active { opacity: 1; }
+
+/* ============================================================
+   顶栏操作按钮
+   ============================================================ */
+.topbar-actions {
+  margin-left: auto;
+  display: flex;
+  gap: var(--sp-2);
+  flex-shrink: 0;
+}
+
+.icon-btn {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  border-radius: var(--r-md);
+  color: var(--fg-secondary);
+  cursor: pointer;
+  transition: all .15s;
+  padding: 0;
+}
+.icon-btn svg { width: 18px; height: 18px; }
+.icon-btn:active { background: var(--accent-wash); border-color: var(--accent-soft); }
+.icon-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* ============================================================
+   底部弹出面板（筛选）
+   ============================================================ */
+.sheet-mask {
+  position: fixed;
+  inset: 0;
+  background: rgba(58, 58, 53, .38);
+  z-index: 240;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .22s;
+}
+.sheet-mask.show { opacity: 1; pointer-events: auto; }
+
+.sheet {
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 250;
+  max-height: 82vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-raised);
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  transform: translateY(100%);
+  transition: transform .28s cubic-bezier(.32,.72,0,1);
+  padding-bottom: var(--safe-bottom);
+}
+.sheet.show { transform: translateY(0); }
+
+/* 桌面端：面板居中显示，不贴底 */
+@media (min-width: 720px) {
+  .sheet {
+    left: 50%;
+    right: auto;
+    bottom: auto;
+    top: 50%;
+    width: min(560px, 90vw);
+    max-height: 80vh;
+    border-radius: var(--r-lg);
+    transform: translate(-50%, -46%);
+    opacity: 0;
+  }
+  .sheet.show { transform: translate(-50%, -50%); opacity: 1; }
+}
+
+.sheet-handle {
+  width: 36px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--border);
+  margin: var(--sp-2) auto var(--sp-1);
+  flex-shrink: 0;
+}
+@media (min-width: 720px) { .sheet-handle { display: none; } }
+
+.sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-3) var(--sp-4);
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.sheet-title { font-size: var(--fs-body-lg); font-weight: 600; }
+.sheet-reset {
+  border: none;
+  background: none;
+  color: var(--accent-deep);
+  font-size: var(--fs-caption);
+  cursor: pointer;
+  padding: var(--sp-1) var(--sp-2);
+}
+
+.sheet-body {
+  flex: 1;
+  /* 同 .detail-body：flex 子项默认 min-height:auto，不设 0 的话
+     内容一多就撑破容器，overflow-y:auto 永远不触发，面板滚不动。 */
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+}
+
+.sheet-foot {
+  flex-shrink: 0;
+  padding: var(--sp-3) var(--sp-4);
+  border-top: 1px solid var(--border-soft);
+}
+
+.btn-primary {
+  width: 100%;
+  height: 44px;
+  border: none;
+  border-radius: var(--r-md);
+  background: var(--accent);
+  color: #fff;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s;
+}
+.btn-primary:active { background: var(--accent-deep); }
+
+/* 筛选分组 */
+.filter-group { margin-bottom: var(--sp-5); }
+.filter-group:last-child { margin-bottom: 0; }
+
+.filter-label {
+  font-size: var(--fs-caption);
+  font-weight: 600;
+  color: var(--fg-secondary);
+  margin-bottom: var(--sp-2);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.filter-label .sel-count {
+  font-weight: 400;
+  color: var(--accent-deep);
+  background: var(--accent-wash);
+  padding: 0 6px;
+  border-radius: 100px;
+  font-size: 11px;
+}
+
+.chip-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.chip {
+  padding: 5px var(--sp-3);
+  border-radius: 100px;
+  border: 1px solid var(--border);
+  background: var(--bg-raised);
+  color: var(--fg-secondary);
+  font-size: var(--fs-caption);
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.chip.on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.chip .chip-n {
+  opacity: .6;
+  margin-left: 3px;
+  font-size: 10px;
+}
+
+/* 随机推荐区块标题 */
+.section-head {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-1) 0 var(--sp-2);
+}
+.section-title {
+  font-size: var(--fs-body-lg);
+  font-weight: 600;
+  color: var(--fg-primary);
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.section-title::before {
+  content: '';
+  width: 3px;
+  height: 15px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.section-action {
+  border: none;
+  background: none;
+  color: var(--accent-deep);
+  font-size: var(--fs-caption);
+  cursor: pointer;
+  padding: var(--sp-1) var(--sp-2);
+}
+
+/* ============================================================
+   相似推荐（播放页底部横滑）
+   ============================================================ */
+.similar-section {
+  margin-top: var(--sp-4);
+  padding-top: var(--sp-3);
+  border-top: 1px solid rgba(255,255,255,.08);
+}
+.similar-section .section-title { color: #EDEAE6; }
+.similar-section .section-head { padding-top: 0; }
+
+/* 详情页（浅色底）里的相似推荐：深色文字 + 浅色分隔线 */
+.similar-section.similar-light {
+  border-top-color: var(--border-soft);
+}
+.similar-section.similar-light .section-title { color: var(--fg-primary); }
+.similar-section.similar-light .similar-vid { color: var(--fg-secondary); }
+.similar-section.similar-light .similar-card img { background: var(--bg-subtle); }
+
+.similar-row {
+  display: flex;
+  gap: var(--sp-2);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: var(--sp-2);
+}
+.similar-row::-webkit-scrollbar { display: none; }
+
+/* 相似推荐占位骨架。
+   高度按真实卡片的宽高比撑开（图 3:4 + 下方一行 VID），
+   这样数据到达前后页面总高度一致，不会「先滚不动、突然能滚」。 */
+.similar-ph { pointer-events: none; }
+.similar-ph-img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  border-radius: var(--r-sm);
+  background: linear-gradient(100deg, var(--bg-subtle) 30%, #EFEFEA 50%, var(--bg-subtle) 70%);
+  background-size: 200% 100%;
+  animation: phShimmer 1.2s ease-in-out infinite;
+}
+.similar-ph::after {
+  content: '';
+  display: block;
+  height: 12px;
+  margin-top: 4px;
+  border-radius: 3px;
+  background: var(--bg-subtle);
+  width: 60%;
+}
+@keyframes phShimmer {
+  from { background-position: 150% 0; }
+  to   { background-position: -50% 0; }
+}
+
+/* 宽屏下改成网格：横向滚动条在桌面上既看不见提示、也不好用鼠标拖，
+   12 张卡被硬生生切掉右半张，看起来像排版坏了。
+   网格铺开后一眼能看全，也不用横向滑动。 */
+@media (min-width: 720px) {
+  .similar-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    overflow-x: visible;
+    gap: var(--sp-3);
+  }
+  .similar-card { width: auto; }
+}
+/* 宽屏固定 6 列：12 张正好 2 行排满，
+   不会像 auto-fill 那样出现「10+2」「7+5」这种尴尬尾行。
+   下限用 1024px：768px 屏放 6 列单张只有 118px，偏小，那一段交给 auto-fill。 */
+@media (min-width: 1024px) {
+  .similar-row { grid-template-columns: repeat(6, 1fr); }
+}
+
+.similar-card {
+  flex-shrink: 0;
+  width: clamp(96px, 22vw, 130px);
+  cursor: pointer;
+}
+.similar-card img {
+  width: 100%;
+  aspect-ratio: 3 / 4;
+  object-fit: cover;
+  border-radius: var(--r-sm);
+  display: block;
+  background: #22221C;
+}
+.similar-card:active img { opacity: .8; }
+.similar-vid {
+  font-family: Consolas, monospace;
+  font-size: 11px;
+  color: #B8B4AE;
+  margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   收藏与评分（播放页）
+   ============================================================ */
+.actions-row {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-top: var(--sp-3);
+  flex-wrap: wrap;
+}
+
+.star-row {
+  display: flex;
+  gap: 2px;
+  align-items: center;
+}
+
+.star {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: rgba(255,255,255,.22);
+  transition: color .12s, transform .12s;
+  display: grid;
+  place-items: center;
+}
+.star svg { width: 22px; height: 22px; }
+.star.on { color: #D9C89A; }
+.star:active { transform: scale(.88); }
+
+.rating-text {
+  font-size: var(--fs-caption);
+  color: #B8B4AE;
+  min-width: 3em;
+  font-variant-numeric: tabular-nums;
+}
+
+.fav-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  padding: 6px var(--sp-3);
+  border-radius: 100px;
+  border: 1px solid rgba(255,255,255,.16);
+  background: rgba(255,255,255,.06);
+  color: #D5D1CB;
+  font-size: var(--fs-caption);
+  cursor: pointer;
+  transition: all .15s;
+}
+.fav-btn svg { width: 15px; height: 15px; }
+.fav-btn.on {
+  background: rgba(217, 200, 154, .16);
+  border-color: rgba(217, 200, 154, .5);
+  color: #D9C89A;
+}
+
+/* 列表页顶部视图切换 */
+.view-tabs {
+  display: flex;
+  gap: var(--sp-1);
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+  min-width: 0;
+}
+.view-tabs::-webkit-scrollbar { display: none; }
+
+.view-tab {
+  flex-shrink: 0;
+  padding: 5px var(--sp-3);
+  border-radius: 100px;
+  border: none;
+  background: transparent;
+  color: var(--fg-secondary);
+  font-size: var(--fs-caption);
+  cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.view-tab.on {
+  background: var(--accent-wash);
+  color: var(--accent-deep);
+  font-weight: 600;
+}
+
+/* 卡片上的收藏角标 */
+.card-fav {
+  position: absolute;
+  top: var(--sp-2);
+  right: var(--sp-2);
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(255,255,255,.9);
+  color: #C9A961;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+.card-fav svg { width: 13px; height: 13px; }
+
+/* ============================================================
+   登录遮罩
+   —— 只在桌面端启用了访问口令时出现。
+   没有注册、没有找回：口令在电脑端设置，这里只负责输入。
+   ============================================================ */
+.login-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: var(--sp-5);
+  background: var(--bg-base);
+}
+.login-mask.show { display: flex; }
+
+.login-box {
+  width: 100%;
+  max-width: 320px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+}
+.login-logo {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto var(--sp-2);
+  border-radius: var(--r-lg);
+  background: var(--accent);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-size: 24px;
+  font-weight: 700;
+}
+.login-title {
+  text-align: center;
+  font-size: var(--fs-body-lg);
+  font-weight: 600;
+  color: var(--fg-primary);
+}
+.login-sub {
+  text-align: center;
+  font-size: var(--fs-caption);
+  color: var(--fg-secondary);
+  margin-top: -6px;
+  line-height: 1.5;
+}
+.login-input {
+  width: 100%;
+  height: 46px;
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--border);
+  border-radius: var(--r-md);
+  background: var(--bg-raised);
+  color: var(--fg-primary);
+  font-size: var(--fs-body);
+  -webkit-appearance: none;
+}
+.login-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.login-btn {
+  height: 46px;
+  border: none;
+  border-radius: var(--r-md);
+  background: var(--accent);
+  color: #fff;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  cursor: pointer;
+}
+.login-btn:active { background: var(--accent-deep); }
+.login-btn:disabled {
+  opacity: .55;
+  cursor: default;
+}
+.login-error {
+  min-height: 18px;
+  text-align: center;
+  font-size: var(--fs-caption);
+  color: #D9534F;
+}
+.login-tip {
+  margin-top: var(--sp-4);
+  text-align: center;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--fg-secondary);
+  opacity: .8;
+}
+</style>
+</head>
+<body>
+
+<div class="progress-bar" id="progressBar"></div>
+
+<!-- 登录遮罩：仅在电脑端启用了访问口令时显示 -->
+<div class="login-mask" id="loginMask">
+  <div class="login-box">
+    <div class="login-logo">J</div>
+    <div class="login-title">需要访问口令</div>
+    <div class="login-sub">口令在电脑端「设置 → 手机网页版」里设置</div>
+    <input
+      class="login-input"
+      id="loginInput"
+      type="password"
+      inputmode="text"
+      autocomplete="current-password"
+      placeholder="请输入访问口令" />
+    <div class="login-error" id="loginError"></div>
+    <button class="login-btn" id="loginBtn" type="button">进入</button>
+    <div class="login-tip">这台设备只需输入一次，之后会自动登录</div>
+  </div>
+</div>
+
+<!-- ============================================================
+     app 容器
+     给下面的尺寸计算提供「容器查询」上下文。
+     用容器而不是视口的好处：cqi 基于容器的真实内容宽度，
+     天然排除了滚动条占宽，不会出现「右边缘卡片被截断」。
+     ============================================================ -->
+<div class="app">
+
+<div class="topbar">
+  <div class="topbar-row">
+    <div class="logo">Jve<span>dio</span></div>
+    <div class="count-badge" id="countBadge">—</div>
+    <div class="topbar-actions">
+      <button class="icon-btn" id="randomBtn" title="随机推荐" aria-label="随机推荐">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="18" height="18" rx="4"/>
+          <circle cx="8.5" cy="8.5" r="1.15" fill="currentColor" stroke="none"/>
+          <circle cx="15.5" cy="8.5" r="1.15" fill="currentColor" stroke="none"/>
+          <circle cx="12" cy="12" r="1.15" fill="currentColor" stroke="none"/>
+          <circle cx="8.5" cy="15.5" r="1.15" fill="currentColor" stroke="none"/>
+          <circle cx="15.5" cy="15.5" r="1.15" fill="currentColor" stroke="none"/>
+        </svg>
+      </button>
+      <button class="icon-btn" id="filterBtn" title="筛选" aria-label="筛选">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 5h18M6 12h12M10 19h4"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+  <div class="search-wrap">
+    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>
+    </svg>
+    <input class="search-input" id="searchInput" type="search"
+           placeholder="搜索识别码或标题" autocomplete="off" autocorrect="off" spellcheck="false">
+  </div>
+  <div class="filter-row">
+    <div class="libs" id="libs"></div>
+    <div class="view-tabs" id="viewTabs">
+      <button class="view-tab on" data-view="">全部</button>
+      <button class="view-tab" data-view="favorite">我的收藏</button>
+      <button class="view-tab" data-view="recent">最近播放</button>
+    </div>
+  </div>
+</div>
+
+<!-- 筛选面板（底部弹出） -->
+<div class="sheet-mask" id="sheetMask"></div>
+<div class="sheet" id="filterSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-head">
+    <div class="sheet-title">筛选</div>
+    <button class="sheet-reset" id="sheetReset">重置</button>
+  </div>
+  <div class="sheet-body" id="sheetBody">
+    <div class="loading"><div class="spinner"></div>加载筛选项…</div>
+  </div>
+  <div class="sheet-foot">
+    <button class="btn-primary" id="sheetApply">查看结果</button>
+  </div>
+</div>
+
+<div class="grid" id="grid">
+  <div class="loading"><div class="spinner"></div>加载中…</div>
+</div>
+
+</div><!-- /.app -->
+
+<!-- 详情页（点击卡片文字区进入） -->
+<div class="detail-page" id="detailPage">
+  <div class="detail-head">
+    <div class="detail-head-inner">
+      <button class="back-btn detail-back" id="detailBackBtn" aria-label="返回">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M15 18l-6-6 6-6"/>
+        </svg>
+      </button>
+      <div class="detail-head-vid" id="detailHeadVid"></div>
+      <button class="detail-play-top" id="detailPlayTopBtn" aria-label="播放">
+        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        <span>播放</span>
+      </button>
+    </div>
+  </div>
+  <div class="detail-body" id="detailBody"></div>
+</div>
+
+<!-- 播放页 -->
+<div class="player-page" id="playerPage">
+  <div class="player-head">
+    <button class="back-btn" id="backBtn" aria-label="返回">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M15 18l-6-6 6-6"/>
+      </svg>
+    </button>
+    <div class="player-vid" id="playerVid"></div>
+    <button class="cast-btn" id="castBtn" aria-label="投屏到投影仪" title="投屏到投影仪">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M2 17.5a2 2 0 012.5 2M2 13.5a6 6 0 016 6M2 9.5a10 10 0 0110 10"/>
+        <path d="M9.5 3.5H19a2 2 0 012 2v10a2 2 0 01-2 2h-2.5"/>
+      </svg>
+    </button>
+  </div>
+  <div class="video-wrap" id="videoWrap"></div>
+  <div class="player-meta" id="playerMeta"></div>
+</div>
+
+<!-- 投屏设备选择面板 -->
+<div class="cast-mask" id="castMask"></div>
+<div class="cast-sheet" id="castSheet">
+  <div class="cast-handle"></div>
+  <div class="cast-head">
+    <div class="cast-title">投屏到</div>
+    <button class="cast-refresh" id="castRefresh" aria-label="重新搜索">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 12a9 9 0 11-2.6-6.4M21 3v6h-6"/>
+      </svg>
+      <span>重新搜索</span>
+    </button>
+  </div>
+  <div class="cast-list" id="castList"></div>
+  <div class="cast-tip" id="castTip">正在搜索局域网内的投影仪…</div>
+</div>
+
+<script>
+/* ============================================================
+   Jvedio 局域网播放前端
+
+   设计约束：
+   - 单文件，无构建步骤，直接由 LanServer 托管
+   - 移动优先，兼容安卓平板 / 鸿蒙平板浏览器
+   - 无限滚动，避免一次性拉 2362 条
+   - 图片懒加载，只在进入视口时请求
+   ============================================================ */
+(function () {
+  'use strict';
+
+  var API = '';                    // 同源，无需前缀
+  var PAGE_SIZE = 30;
+
+  /* ============================================================
+     访问令牌
+
+     桌面端可以设置访问口令。开启后：
+     - 本机（这台设备）第一次访问要输口令，之后长期记住；
+     - 令牌存在 localStorage，请求时自动带上；
+     - /stream/ 与 /image/ 走 img/src、video/src，无法带自定义头，
+       所以统一用 ?token= 查询参数（fetch 场景也用它，行为一致）。
+
+     未开启口令时 token 为空，所有逻辑自然跳过，用户完全无感。
+     ============================================================ */
+
+  var TOKEN_KEY = 'jvedio_token';
+
+  function getToken() {
+    try { return localStorage.getItem(TOKEN_KEY) || ''; } catch (e) { return ''; }
+  }
+
+  function setToken(t) {
+    try {
+      if (t) localStorage.setItem(TOKEN_KEY, t);
+      else localStorage.removeItem(TOKEN_KEY);
+    } catch (e) { /* 隐私模式下可能抛异常，忽略 */ }
+  }
+
+  /**
+   * 给 URL 附加令牌。
+   * 已经有 ?cast= 这类参数时用 & 连接。
+   */
+  function withToken(url) {
+    var t = getToken();
+    if (!t) return url;
+    return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'token=' + encodeURIComponent(t);
+  }
+
+  /**
+   * 统一的 fetch 封装：自动带令牌，遇到 401 弹出登录。
+   */
+  function apiFetch(url, options) {
+    options = options || {};
+    var headers = options.headers || {};
+    var t = getToken();
+    if (t) headers['Authorization'] = 'Bearer ' + t;
+    options.headers = headers;
+
+    return fetch(url, options).then(function (r) {
+      // 令牌失效（桌面端改了口令 / 过期）：清掉并重新要口令
+      if (r.status === 401) {
+        setToken('');
+        showLogin('登录已失效，请重新输入口令');
+        throw new Error('unauthorized');
+      }
+      return r;
+    });
+  }
+
+  var state = {
+    page: 1,
+    totalPages: 1,
+    totalCount: 0,
+    keyword: '',
+    dbId: 0,
+    loading: false,
+    done: false,
+    // 筛选条件：字段名 -> 选中值数组
+    filters: {},
+    mode: 'list',     // 'list' | 'random'
+    view: '',         // '' | 'favorite' | 'recent'
+    sort: '',
+    // 随机推荐的结果快照。播放页退出后浏览器可能重建页面，
+    // 靠它把「随机推荐」恢复回来，而不是退回默认列表。
+    randomItems: null,
+  };
+
+  /* ============================================================
+     背景滚动锁（引用计数）
+
+     详情页、播放页、筛选面板都要求「打开时背景不能滚」。
+     如果各自直接写 body.style.overflow，后关闭的那个会把锁清掉，
+     导致还有一层开着但背景已经能滚。
+
+     用计数器：加锁 +1，解锁 -1，只有归零才真正恢复滚动。
+     这样无论关闭顺序如何，结果都正确。
+     ============================================================ */
+  var scrollLocks = 0;
+
+  function lockScroll() {
+    scrollLocks++;
+    document.body.style.overflow = 'hidden';
+  }
+
+  function unlockScroll() {
+    scrollLocks = Math.max(0, scrollLocks - 1);
+    if (scrollLocks === 0)
+      document.body.style.overflow = '';
+  }
+
+  var grid = document.getElementById('grid');
+  var countBadge = document.getElementById('countBadge');
+  var searchInput = document.getElementById('searchInput');
+  var libsEl = document.getElementById('libs');
+  var progressBar = document.getElementById('progressBar');
+
+  var randomBtn = document.getElementById('randomBtn');
+  var filterBtn = document.getElementById('filterBtn');
+  var sheetMask = document.getElementById('sheetMask');
+  var filterSheet = document.getElementById('filterSheet');
+  var sheetBody = document.getElementById('sheetBody');
+  var sheetApply = document.getElementById('sheetApply');
+  var sheetReset = document.getElementById('sheetReset');
+
+  var playerPage = document.getElementById('playerPage');
+  var playerVid = document.getElementById('playerVid');
+  var playerMeta = document.getElementById('playerMeta');
+  var videoWrap = document.getElementById('videoWrap');
+  var backBtn = document.getElementById('backBtn');
+
+  var castBtn = document.getElementById('castBtn');
+  var castMask = document.getElementById('castMask');
+  var castSheet = document.getElementById('castSheet');
+  var castList = document.getElementById('castList');
+  var castTip = document.getElementById('castTip');
+  var castRefresh = document.getElementById('castRefresh');
+
+  // 标记「本次关闭是由返回键触发的」，避免重复回退历史
+  var playerClosingByBack = false;
+
+  /* ---------- 工具 ---------- */
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+
+  /**
+   * 轻量提示条。
+   *
+   * 项目里没有现成的 toast，投屏成功/停止需要即时反馈，
+   * 用系统 alert 会打断操作，所以这里做一个自动消失的浮层。
+   * 同一时刻只保留一条，新的顶掉旧的。
+   */
+  var _toastEl = null;
+  var _toastTimer = null;
+
+  function toast(text) {
+    if (_toastEl) {
+      _toastEl.remove();
+      _toastEl = null;
+    }
+    if (_toastTimer) {
+      clearTimeout(_toastTimer);
+      _toastTimer = null;
+    }
+
+    var box = el('div', 'toast-item', text);
+    document.body.appendChild(box);
+    _toastEl = box;
+
+    // 下一帧加 show，让过渡动画生效
+    requestAnimationFrame(function () { box.classList.add('show'); });
+
+    _toastTimer = setTimeout(function () {
+      box.classList.remove('show');
+      setTimeout(function () {
+        if (box.parentNode) box.parentNode.removeChild(box);
+        if (_toastEl === box) _toastEl = null;
+      }, 260);
+    }, 2200);
+  }
+
+  function formatSize(bytes) {
+    if (!bytes) return '';
+    var gb = bytes / 1073741824;
+    if (gb >= 1) return gb.toFixed(1) + ' GB';
+    return Math.round(bytes / 1048576) + ' MB';
+  }
+
+  function formatDuration(min) {
+    if (!min) return '';
+    var h = Math.floor(min / 60), m = min % 60;
+    return h > 0 ? h + ' 小时 ' + m + ' 分' : m + ' 分钟';
+  }
+
+  /**
+   * 从路径或已有 FileName 取显示名。
+   * 短片没有识别码，用文件名兜底，避免整片"未知编号"。
+   */
+  function fileNameOf(fileName) {
+    if (!fileName) return null;
+    var s = String(fileName);
+    // 去掉可能的路径前缀与扩展名（后端通常已处理好，这里做双保险）
+    s = s.replace(/^.*[\\\/]/, '').replace(/\.[a-z0-9]{2,4}$/i, '');
+    return s.trim() || null;
+  }
+
+  function showProgress(on) {
+    progressBar.classList.toggle('active', on);
+    if (on) progressBar.style.width = '30%';
+    else {
+      progressBar.style.width = '100%';
+      setTimeout(function () { progressBar.classList.remove('active'); progressBar.style.width = '0'; }, 280);
+    }
+  }
+
+  /* ---------- 数据加载 ---------- */
+
+  function buildUrl() {
+    var u = API + '/api/videos?page=' + state.page + '&pageSize=' + PAGE_SIZE;
+    if (state.dbId > 0) u += '&dbId=' + state.dbId;
+    if (state.keyword) u += '&keyword=' + encodeURIComponent(state.keyword);
+    if (state.view) u += '&view=' + encodeURIComponent(state.view);
+    if (state.sort) u += '&sort=' + encodeURIComponent(state.sort);
+
+    // 筛选条件：同名多值用逗号连接，由后端按 OR 处理
+    Object.keys(state.filters).forEach(function (field) {
+      var arr = state.filters[field];
+      if (arr && arr.length) {
+        u += '&' + field + '=' + encodeURIComponent(arr.join(','));
+      }
+    });
+    return u;
+  }
+
+  function loadPage() {
+    if (state.loading || state.done) return;
+    state.loading = true;
+    showProgress(true);
+
+    if (state.page === 1) {
+      grid.innerHTML = '';
+      grid.appendChild(el('div', 'loading', '')).innerHTML = '<div class="spinner"></div>加载中…';
+    }
+
+    apiFetch(buildUrl())
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        if (state.page === 1) grid.innerHTML = '';
+
+        state.totalPages = data.TotalPages || 1;
+        state.totalCount = data.TotalCount || 0;
+        countBadge.textContent = state.totalCount.toLocaleString() + ' 部';
+
+        var items = data.Items || [];
+        if (items.length === 0 && state.page === 1) {
+          grid.appendChild(el('div', 'empty', '没有找到内容'));
+        } else {
+          items.forEach(function (item) { grid.appendChild(renderCard(item)); });
+        }
+
+        if (state.page >= state.totalPages) {
+          state.done = true;
+          if (items.length > 0) grid.appendChild(el('div', 'empty', '已经到底了'));
+        } else {
+          state.page++;
+        }
+        saveListState();
+      })
+      .catch(function (err) {
+        if (state.page === 1) {
+          grid.innerHTML = '';
+          grid.appendChild(el('div', 'empty', '加载失败：' + err.message));
+        }
+      })
+      .then(function () {
+        state.loading = false;
+        showProgress(false);
+      });
+  }
+
+  /* ---------- 卡片渲染 ---------- */
+
+  function renderCard(item) {
+    var card = el('div', 'card');
+    card.dataset.id = item.DataID;
+
+    var cover = el('div', 'card-cover');
+
+    var img = document.createElement('img');
+    img.loading = 'lazy';
+    img.decoding = 'async';
+    img.alt = item.VID || '';
+    img.src = withToken(item.SmallImageUrl || item.BigImageUrl);
+    img.addEventListener('load', function () {
+      img.classList.add('loaded');
+      cover.classList.add('ready');
+    });
+    img.addEventListener('error', function () {
+      // 短片等记录本来就没有封面图，显示占位而不是留白。
+      // 用内联 SVG 而非外链，避免再产生一次 404。
+      cover.classList.add('ready');
+      img.style.display = 'none';
+      var ph = el('div', 'cover-placeholder');
+      ph.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">' +
+        '<rect x="3" y="4" width="18" height="16" rx="2"/>' +
+        '<circle cx="8.5" cy="9.5" r="1.5"/><path d="M21 16l-5-5-4 4-2-2-4 4"/></svg>';
+      cover.appendChild(ph);
+    });
+    cover.appendChild(img);
+
+    if (item.Tags && item.Tags.length) {
+      var tags = el('div', 'card-tags');
+      item.Tags.slice(0, 2).forEach(function (t) { tags.appendChild(el('span', 'tag', t)); });
+      cover.appendChild(tags);
+    }
+
+    var info = el('div', 'card-info');
+
+    // 显示名称：有识别码用识别码，否则退回标题，再否则用文件名。
+    // 短片（文件名含中文的普通视频）没有识别码，直接显示"未知编号"没有意义。
+    var primary = item.VID || item.Title || fileNameOf(item.FileName) || ('#' + item.DataID);
+    var vidEl = el('div', 'card-vid', primary);
+    // 有识别码时用等宽字体（形成对齐的列）；退回标题时用正常字体
+    if (!item.VID) vidEl.classList.add('is-text');
+    info.appendChild(vidEl);
+
+    if (item.ReleaseDate) info.appendChild(el('div', 'card-date', item.ReleaseDate));
+    // 有识别码时，标题作为第二行信息
+    if (item.VID && item.Title) info.appendChild(el('div', 'card-title', item.Title));
+
+    card.appendChild(cover);
+    card.appendChild(info);
+
+    /* 点击分区：
+       封面 -> 直接播放（最常用操作，少一次跳转）
+       文字区 -> 详情页（看简介、演员、多张截图）
+
+       判断方式用「点是否落在封面元素内」，而不是靠 DOM 层级猜：
+       - 绑在 cover 上的监听只能覆盖 cover 自己的盒模型，
+         图片加载中/圆角/亚像素取整都会留下点不中的缝；
+       - 用户点封面时应该 100% 是播放，不能因为点在图片边缘
+         或角上就跳到详情页。
+       所以统一绑在 card 上，用几何判断分区，并把整卡兜住，
+       避免点空隙落到 #grid 上没有任何响应。 */
+    card.addEventListener('click', function (e) {
+      e.stopPropagation();
+      // contains 判定：点中封面本身或封面的任一子元素（img、标签角标）
+      var hitCover = cover.contains(e.target);
+      if (hitCover) openPlayer(item.DataID);
+      else openDetail(item.DataID);
+    });
+
+    return card;
+  }
+
+  /* ============================================================
+     详情页
+
+     入口：点击卡片的文字区（封面区是直接播放）。
+     内容参考桌面版详情：标题、封面、发行信息、简介、类别、
+     演员、内容截图、评分收藏、相似推荐。
+     ============================================================ */
+
+  var detailPage = document.getElementById('detailPage');
+  var detailBody = document.getElementById('detailBody');
+  var detailHeadVid = document.getElementById('detailHeadVid');
+  var detailBackBtn = document.getElementById('detailBackBtn');
+  var detailPlayTopBtn = document.getElementById('detailPlayTopBtn');
+
+  // 当前详情页对应的数据，供顶部「播放」按钮使用
+  var currentDetail = null;
+  var detailClosingByBack = false;
+
+  /**
+   * 详情请求令牌。
+   *
+   * 快速连点两张卡片时，两个请求并发飞行，
+   * 先发的可能后返回，把已经显示的新内容覆盖成旧的。
+   * 每次请求自增令牌，回调里只认最新的那个。
+   */
+  var detailToken = 0;
+
+  function openDetail(dataId) {
+    // 是否「已在详情页内换片」——决定历史记录用 replace 还是 push。
+    // 必须在加 show 类之前判断，否则条件永远为真。
+    var alreadyOpen = detailPage.classList.contains('show');
+
+    // 立刻清掉上一部的数据：请求失败时顶部「播放」按钮仍指向旧片，
+    // 会让用户播放到完全不相关的视频。
+    currentDetail = null;
+    detailHeadVid.textContent = '加载中…';
+    detailBody.innerHTML = '<div class="loading"><div class="spinner"></div>加载详情…</div>';
+    detailPage.classList.add('show');
+
+    // 只有首次打开才加锁。
+    // 已打开时（详情页内换片）再加一次锁，关闭时只解一次，
+    // 锁计数就永远归不了零，背景会永久无法滚动。
+    if (!alreadyOpen) lockScroll();
+
+    // 与播放页同理：压一条历史，手机返回键先关详情页。
+    // 已在详情页内切换到另一部时用 replaceState，否则连点 N 个相似项
+    // 会积压 N 条历史，用户要按 N 次返回才能退出。
+    try {
+      if (alreadyOpen) {
+        history.replaceState({ detail: dataId }, '');
+      } else {
+        history.pushState({ detail: dataId }, '');
+      }
+    } catch (e) { /* 忽略 */ }
+
+    var token = ++detailToken;
+
+    apiFetch(API + '/api/video/' + dataId)
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (d) {
+        // 期间又点了别的片子，这次的结果作废
+        if (token !== detailToken) return;
+        renderDetail(d);
+      })
+      .catch(function (err) {
+        if (token !== detailToken) return;
+        detailBody.innerHTML = '';
+        detailBody.appendChild(el('div', 'empty', '加载失败：' + err.message));
+      });
+  }
+
+  function closeDetail() {
+    // 已经关掉了就不要重复解锁（连点返回按钮会触发两次）
+    if (!detailPage.classList.contains('show'))
+      return;
+
+    detailPage.classList.remove('show');
+    unlockScroll();
+
+    // 让飞行中的详情请求作废，避免关闭后迟到响应又渲染进来
+    detailToken++;
+
+    if (detailClosingByBack) {
+      detailClosingByBack = false;
+    } else {
+      try { history.back(); } catch (e) { /* 忽略 */ }
+    }
+  }
+
+  detailBackBtn.addEventListener('click', closeDetail);
+  detailPlayTopBtn.addEventListener('click', function () {
+    playFromDetail();
+  });
+
+  /**
+   * 从详情页开始播放。
+   *
+   * 关键：不能走 closeDetail()，因为它会 history.back()；
+   * 紧接着 openPlayer() 又 pushState，形成「回退+前进」的组合，
+   * 部分移动浏览器会因此丢失历史栈，返回键彻底失效。
+   *
+   * 正确做法：直接收起详情页的视觉层，把当前历史条目
+   * 就地替换成播放页的，这样返回键仍然只退一层就回到列表。
+   */
+  function playFromDetail() {
+    if (!currentDetail) return;
+    var id = currentDetail.DataID;
+
+    // 只做视觉收起，不碰历史
+    detailPage.classList.remove('show');
+    unlockScroll();
+    currentDetail = null;
+
+    setTimeout(function () {
+      openPlayer(id, true);   // replaceHistory=true：复用详情页那条历史
+    }, 180);
+  }
+
+  function renderDetail(d) {
+    currentDetail = d;
+    detailHeadVid.textContent = d.VID || d.Title || fileNameOf(d.FileName) || ('#' + d.DataID);
+    detailBody.innerHTML = '';
+
+    /* ---------- 顶部：封面 + 基本信息 ---------- */
+    var hero = el('div', 'detail-hero');
+
+    var coverBox = el('div', 'detail-cover');
+    var coverImg = document.createElement('img');
+    coverImg.loading = 'eager';
+    coverImg.alt = d.VID || '';
+    coverImg.src = withToken(d.BigImageUrl || d.SmallImageUrl);
+    coverImg.addEventListener('error', function () {
+      // 大图缺失时退回小图
+      if (coverImg.src.indexOf('/image/big/') >= 0) coverImg.src = withToken(d.SmallImageUrl);
+    });
+    coverBox.appendChild(coverImg);
+    hero.appendChild(coverBox);
+
+    var heroInfo = el('div', 'detail-hero-info');
+    // 标题缺失时退回文件名。
+    // 短片没有识别码也没有标题，原来这里什么都不显示，
+    // hero 只剩两行「大小/观看次数」，右边一大片空白看着像坏了。
+    var heroTitle = d.Title || fileNameOf(d.FileName);
+    if (heroTitle) heroInfo.appendChild(el('div', 'detail-title', heroTitle));
+
+    var meta1 = el('div', 'detail-meta-line');
+    if (d.ReleaseDate) meta1.appendChild(el('span', null, d.ReleaseDate));
+    if (d.Duration) meta1.appendChild(el('span', null, formatDuration(d.Duration)));
+    if (d.Size) meta1.appendChild(el('span', null, formatSize(d.Size)));
+    if (meta1.children.length) heroInfo.appendChild(meta1);
+
+    var meta2 = el('div', 'detail-meta-line');
+    if (d.Studio) meta2.appendChild(el('span', null, '发行 ' + d.Studio));
+    if (d.Director) meta2.appendChild(el('span', null, '导演 ' + d.Director));
+    if (d.Series) meta2.appendChild(el('span', null, '系列 ' + d.Series));
+    if (meta2.children.length) heroInfo.appendChild(meta2);
+
+    // 播放量 / 评分
+    var statLine = el('div', 'detail-meta-line');
+    if (d.ViewCount) statLine.appendChild(el('span', null, '观看 ' + d.ViewCount + ' 次'));
+    if (d.Grade > 0) statLine.appendChild(el('span', null, '我的评分 ' + d.Grade.toFixed(1) + ' 星'));
+    if (statLine.children.length) heroInfo.appendChild(statLine);
+
+    hero.appendChild(heroInfo);
+    detailBody.appendChild(hero);
+
+    /* ---------- 主操作：播放 + 评分收藏 ---------- */
+    var actions = el('div', 'detail-actions');
+
+    if (d.Playable) {
+      var playBtn = el('button', 'detail-play-btn');
+      playBtn.type = 'button';
+      playBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>播放';
+      playBtn.addEventListener('click', function () { playFromDetail(); });
+      actions.appendChild(playBtn);
+
+      // 详情页也能直接投屏：不必先点开播放再找投屏按钮
+      var castHere = el('button', 'detail-cast-btn');
+      castHere.type = 'button';
+      castHere.setAttribute('aria-label', '投屏');
+      castHere.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
+        '<path d="M2 17.5a2 2 0 012.5 2M2 13.5a6 6 0 016 6M2 9.5a10 10 0 0110 10"/>' +
+        '<path d="M9.5 3.5H19a2 2 0 012 2v10a2 2 0 01-2 2h-2.5"/></svg>';
+      castHere.addEventListener('click', function () {
+        currentDetail = d;
+        openCastSheet();
+      });
+      actions.appendChild(castHere);
+    } else {
+      actions.appendChild(el('div', 'empty', '文件不存在或无法访问'));
+    }
+
+    // 复用播放页那套评分控件（星星 + 收藏）
+    actions.appendChild(buildActions(d));
+    detailBody.appendChild(actions);
+
+    /* ---------- 简介 ---------- */
+    var plot = d.Plot || d.Outline;
+    if (plot) {
+      var sec = el('div', 'detail-section');
+      sec.appendChild(el('div', 'detail-section-title', '简介'));
+      sec.appendChild(el('div', 'detail-text', plot));
+      detailBody.appendChild(sec);
+    }
+
+    /* ---------- 类别 ---------- */
+    if (d.Genres && d.Genres.length) {
+      var gsec = el('div', 'detail-section');
+      gsec.appendChild(el('div', 'detail-section-title', '类别'));
+      var gwrap = el('div', 'detail-chips');
+      d.Genres.forEach(function (g) { gwrap.appendChild(el('span', 'detail-chip', g)); });
+      gsec.appendChild(gwrap);
+      detailBody.appendChild(gsec);
+    }
+
+    /* ---------- 标签 ---------- */
+    if (d.Tags && d.Tags.length) {
+      var tsec = el('div', 'detail-section');
+      tsec.appendChild(el('div', 'detail-section-title', '标签'));
+      var twrap = el('div', 'detail-chips');
+      d.Tags.forEach(function (t) { twrap.appendChild(el('span', 'detail-chip', t)); });
+      tsec.appendChild(twrap);
+      detailBody.appendChild(tsec);
+    }
+
+    /* ---------- 演员 ---------- */
+    if (d.ActorList && d.ActorList.length) {
+      var asec = el('div', 'detail-section');
+      asec.appendChild(el('div', 'detail-section-title', '演员'));
+      var awrap = el('div', 'detail-actors');
+      d.ActorList.forEach(function (a) {
+        var box = el('div', 'detail-actor');
+        var img = document.createElement('img');
+        img.loading = 'lazy';
+        img.alt = a.ActorName || '';
+        img.src = withToken(a.ImageUrl);
+        img.addEventListener('error', function () { img.style.visibility = 'hidden'; });
+        box.appendChild(img);
+        box.appendChild(el('div', 'detail-actor-name', a.ActorName || ''));
+        awrap.appendChild(box);
+      });
+      asec.appendChild(awrap);
+      detailBody.appendChild(asec);
+    }
+
+    /* ---------- 内容截图 ---------- */
+    if (d.PreviewImageUrls && d.PreviewImageUrls.length) {
+      var ssec = el('div', 'detail-section');
+      ssec.appendChild(el('div', 'detail-section-title', '内容截图'));
+      var shots = el('div', 'detail-shots');
+      d.PreviewImageUrls.forEach(function (url) {
+        var shot = el('div', 'detail-shot');
+        var img = document.createElement('img');
+        img.loading = 'lazy';
+        img.alt = '';
+        img.src = withToken(url);
+        // 加载完成前保持灰底；失败就整块隐藏，避免留下一排空白方块
+        img.addEventListener('load', function () { shot.classList.add('ok'); });
+        img.addEventListener('error', function () { shot.classList.add('failed'); });
+        img.addEventListener('click', function () { showShotViewer(url); });
+        shot.appendChild(img);
+        shots.appendChild(shot);
+      });
+      ssec.appendChild(shots);
+      detailBody.appendChild(ssec);
+    }
+
+    /* ---------- 相似推荐 ---------- */
+    var similarBox = el('div', 'detail-section');
+    detailBody.appendChild(similarBox);
+    loadSimilar(d.DataID, similarBox, true);
+  }
+
+  /* 截图大图查看 */
+  var shotViewer = null;
+  function showShotViewer(url) {
+    if (!shotViewer) {
+      shotViewer = el('div', 'shot-viewer');
+      shotViewer.addEventListener('click', function () { shotViewer.classList.remove('show'); });
+      document.body.appendChild(shotViewer);
+    }
+    shotViewer.innerHTML = '';
+    var img = document.createElement('img');
+    img.src = withToken(url);
+    shotViewer.appendChild(img);
+    shotViewer.classList.add('show');
+  }
+
+  /* ---------- 播放 ---------- */
+
+  var currentVideo = null;
+
+  /**
+   * 播放请求令牌（同 detailToken 的道理）。
+   * 换片/关闭时自增，让飞行中的旧请求失效。
+   */
+  var playerToken = 0;
+
+  /**
+   * 打开播放页。
+   *
+   * replaceHistory: 用当前历史条目替换而不是新增一条。
+   * 从详情页跳转播放时传 true——详情页已经占了一条历史，
+   * 再 push 会让返回键需要按两次才能回列表。
+   */
+  function openPlayer(dataId, replaceHistory) {
+    playerVid.textContent = '加载中…';
+    playerMeta.innerHTML = '';
+    videoWrap.innerHTML = '<div class="loading" style="color:#8A8782"><div class="spinner"></div>打开中…</div>';
+    playerPage.classList.add('show');
+    lockScroll();
+
+    // 压入一条历史记录，这样手机按「返回」是关闭播放页，
+    // 而不是直接退出整个网站（原来没有 pushState，返回键行为完全不可控）。
+    try {
+      if (replaceHistory) {
+        history.replaceState({ player: dataId }, '');
+      } else {
+        history.pushState({ player: dataId }, '');
+      }
+    } catch (e) { /* 某些环境禁用 history，忽略 */ }
+
+    var token = ++playerToken;
+
+    apiFetch(API + '/api/video/' + dataId)
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        // 期间已切到别的片子或关了播放页，这次结果作废
+        if (token !== playerToken) return;
+        renderPlayer(d);
+      })
+      .catch(function (err) {
+        if (token !== playerToken) return;
+        videoWrap.innerHTML = '';
+        videoWrap.appendChild(el('div', 'player-error', '无法加载详情：' + err.message));
+      });
+  }
+
+  /* ============================================================
+     播放控件层
+     ============================================================ */
+
+  var ICON = {
+    play: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>',
+    pause: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>',
+    back10: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5L6 9l5 4"/><path d="M6 9h7a5 5 0 015 5v1"/><text x="11" y="19" font-size="7" fill="currentColor" stroke="none">10</text></svg>',
+    fwd10: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 5l5 4-5 4"/><path d="M18 9h-7a5 5 0 00-5 5v1"/><text x="6" y="19" font-size="7" fill="currentColor" stroke="none">10</text></svg>',
+    full: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 00-2 2v3M16 3h3a2 2 0 012 2v3M8 21H5a2 2 0 01-2-2v-3M16 21h3a2 2 0 002-2v-3"/></svg>',
+    exitFull: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 01-2 2H3M16 3v3a2 2 0 002 2h3M8 21v-3a2 2 0 00-2-2H3M16 21v-3a2 2 0 012-2h3"/></svg>',
+    close: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6L6 18M6 6l12 12"/></svg>',
+  };
+
+  function fmtTime(sec) {
+    if (!isFinite(sec) || sec < 0) sec = 0;
+    sec = Math.floor(sec);
+    var h = Math.floor(sec / 3600);
+    var m = Math.floor((sec % 3600) / 60);
+    var s = sec % 60;
+    var mm = (h > 0 && m < 10 ? '0' : '') + m;
+    var ss = (s < 10 ? '0' : '') + s;
+    return h > 0 ? h + ':' + mm + ':' + ss : mm + ':' + ss;
+  }
+
+  function buildControls(video, d) {
+    var vc = el('div', 'vc');
+
+    /* ---- 顶部：关闭 + 标题 ---- */
+    var top = el('div', 'vc-top');
+    var closeBtn = el('button', 'vc-close');
+    closeBtn.type = 'button';
+    closeBtn.innerHTML = ICON.close;
+    closeBtn.setAttribute('aria-label', '关闭');
+    closeBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      closePlayer();
+    });
+    top.appendChild(closeBtn);
+    top.appendChild(el('div', 'vc-title', d.VID || d.Title || fileNameOf(d.FileName) || ''));
+
+    /* ---- 底部：进度条 + 按钮行 ---- */
+    var bottom = el('div', 'vc-bottom');
+
+    var prog = el('div', 'vc-progress');
+    var track = el('div', 'vc-track');
+    var buffer = el('div', 'vc-buffer');
+    var played = el('div', 'vc-played');
+    var thumb = el('div', 'vc-thumb');
+    var bubble = el('div', 'vc-bubble', '00:00');
+    track.appendChild(buffer);
+    track.appendChild(played);
+    track.appendChild(thumb);
+    prog.appendChild(track);
+    prog.appendChild(bubble);
+
+    var row = el('div', 'vc-row');
+    var playBtn = el('button', 'vc-btn play');
+    playBtn.type = 'button';
+    playBtn.innerHTML = ICON.play;
+    var backBtn10 = el('button', 'vc-btn');
+    backBtn10.type = 'button';
+    backBtn10.innerHTML = ICON.back10;
+    var fwdBtn10 = el('button', 'vc-btn');
+    fwdBtn10.type = 'button';
+    fwdBtn10.innerHTML = ICON.fwd10;
+
+    var timeEl = el('div', 'vc-time');
+    var curEl = el('span', null, '00:00');
+    var sepEl = el('span', 'sep', '/');
+    var durEl = el('span', null, '00:00');
+    timeEl.appendChild(curEl);
+    timeEl.appendChild(sepEl);
+    timeEl.appendChild(durEl);
+
+    var rateBtn = el('button', 'vc-rate', '1.0×');
+    rateBtn.type = 'button';
+
+    var fullBtn = el('button', 'vc-btn');
+    fullBtn.type = 'button';
+    fullBtn.innerHTML = ICON.full;
+
+    row.appendChild(playBtn);
+    row.appendChild(backBtn10);
+    row.appendChild(fwdBtn10);
+    row.appendChild(timeEl);
+    row.appendChild(el('div', 'vc-spacer'));
+    row.appendChild(rateBtn);
+    row.appendChild(fullBtn);
+
+    bottom.appendChild(prog);
+    bottom.appendChild(row);
+
+    /* ---- 中央播放按钮 + 加载圈 ---- */
+    var center = el('button', 'vc-center');
+    center.type = 'button';
+    center.innerHTML = ICON.play;
+    center.setAttribute('aria-label', '播放');
+
+    var loading = el('div', 'vc-loading');
+    loading.style.display = 'none';
+
+    // 双击快进/快退的视觉反馈
+    var skipL = el('div', 'vc-skip left', '« 10 秒');
+    var skipR = el('div', 'vc-skip right', '10 秒 »');
+
+    vc.appendChild(top);
+    vc.appendChild(center);
+    vc.appendChild(loading);
+    vc.appendChild(skipL);
+    vc.appendChild(skipR);
+    vc.appendChild(bottom);
+    videoWrap.appendChild(vc);
+
+    /* ---------- 状态同步 ---------- */
+
+    function setPlayIcon() {
+      var playing = !video.paused && !video.ended;
+      playBtn.innerHTML = playing ? ICON.pause : ICON.play;
+      center.classList.toggle('hide', playing);
+    }
+
+    function updateProgress() {
+      var dur = video.duration;
+      var cur = video.currentTime;
+      if (isFinite(dur) && dur > 0) {
+        var pct = (cur / dur) * 100;
+        played.style.width = pct + '%';
+        thumb.style.left = pct + '%';
+      }
+      curEl.textContent = fmtTime(cur);
+      durEl.textContent = isFinite(dur) ? fmtTime(dur) : '--:--';
+
+      // 缓冲进度
+      try {
+        if (video.buffered.length > 0 && isFinite(dur) && dur > 0) {
+          var end = video.buffered.end(video.buffered.length - 1);
+          buffer.style.width = Math.min(100, (end / dur) * 100) + '%';
+        }
+      } catch (e) { /* 忽略 */ }
+    }
+
+    /* ---------- 事件绑定 ---------- */
+
+    video.addEventListener('timeupdate', updateProgress);
+    video.addEventListener('progress', updateProgress);
+    video.addEventListener('loadedmetadata', function () {
+      updateProgress();
+      durEl.textContent = fmtTime(video.duration);
+    });
+    video.addEventListener('play', setPlayIcon);
+    video.addEventListener('pause', setPlayIcon);
+    video.addEventListener('ended', setPlayIcon);
+
+    video.addEventListener('waiting', function () { loading.style.display = 'block'; });
+    video.addEventListener('playing', function () { loading.style.display = 'none'; });
+    video.addEventListener('canplay', function () { loading.style.display = 'none'; });
+
+    function togglePlay() {
+      if (video.paused) video.play().catch(function () {});
+      else video.pause();
+    }
+
+    playBtn.addEventListener('click', function (e) { e.stopPropagation(); togglePlay(); });
+    center.addEventListener('click', function (e) { e.stopPropagation(); togglePlay(); });
+
+    function seekBy(delta) {
+      var t = Math.max(0, Math.min(video.duration || 0, video.currentTime + delta));
+      video.currentTime = t;
+      updateProgress();
+    }
+    backBtn10.addEventListener('click', function (e) { e.stopPropagation(); seekBy(-10); });
+    fwdBtn10.addEventListener('click', function (e) { e.stopPropagation(); seekBy(10); });
+
+    /* ---- 进度条拖动（鼠标 + 触摸统一用 Pointer 事件）---- */
+
+    var dragging = false;
+
+    function posToTime(clientX) {
+      var rect = track.getBoundingClientRect();
+      var ratio = (clientX - rect.left) / rect.width;
+      ratio = Math.max(0, Math.min(1, ratio));
+      return ratio * (video.duration || 0);
+    }
+
+    function showBubble(clientX, time) {
+      var rect = track.getBoundingClientRect();
+      bubble.textContent = fmtTime(time);
+      bubble.style.left = (clientX - rect.left) + 'px';
+    }
+
+    prog.addEventListener('pointerdown', function (e) {
+      if (!isFinite(video.duration) || video.duration <= 0) return;
+      dragging = true;
+      prog.classList.add('dragging');
+      try { prog.setPointerCapture(e.pointerId); } catch (err) { }
+      var t = posToTime(e.clientX);
+      showBubble(e.clientX, t);
+      video.currentTime = t;
+      updateProgress();
+      e.preventDefault();
+    });
+
+    prog.addEventListener('pointermove', function (e) {
+      if (!isFinite(video.duration) || video.duration <= 0) return;
+      var t = posToTime(e.clientX);
+      if (dragging) {
+        showBubble(e.clientX, t);
+        video.currentTime = t;
+        updateProgress();
+      }
+    });
+
+    function endDrag(e) {
+      if (!dragging) return;
+      dragging = false;
+      prog.classList.remove('dragging');
+      try { prog.releasePointerCapture(e.pointerId); } catch (err) { }
+    }
+    prog.addEventListener('pointerup', endDrag);
+    prog.addEventListener('pointercancel', endDrag);
+
+    /* ---- 点击 / 双击手势 ----
+       单击：切换控件显隐（300ms 延迟，等双击判定）
+       双击左/右半屏：快退 / 快进 10 秒
+       这是 YouTube / B站 移动端的通用交互，两者可以共存，
+       代价只是单击响应慢 300ms，用户几乎无感。
+    */
+    var tapTimer = null;
+    var lastTapTime = 0;
+    var lastTapX = 0;
+
+    function flashSkip(node) {
+      node.classList.add('show');
+      setTimeout(function () { node.classList.remove('show'); }, 550);
+    }
+
+    video.addEventListener('click', function (e) {
+      // 刚完成一次横向滑动：浏览器仍会补发 click，
+      // 不拦掉会导致滑动结束后控件莫名切换显隐
+      if (Date.now() - swipe.lastEndAt < 350) return;
+
+      var now = Date.now();
+      var rect = video.getBoundingClientRect();
+      var x = e.clientX - rect.left;
+
+      var isDouble = (now - lastTapTime < 300) && Math.abs(x - lastTapX) < 70;
+
+      if (isDouble) {
+        // 双击：取消待执行的单击动作，直接快进/快退
+        clearTimeout(tapTimer);
+        lastTapTime = 0;
+        if (x < rect.width / 2) {
+          seekBy(-10);
+          flashSkip(skipL);
+        } else {
+          seekBy(10);
+          flashSkip(skipR);
+        }
+        return;
+      }
+
+      lastTapTime = now;
+      lastTapX = x;
+
+      // 单击：延迟 300ms 执行，期间若来了第二击就作废。
+      //
+      // 判据必须用「按下那一刻」的快照，不能用执行时的 uiVisible：
+      // 手机上一次点击会连带触发一串合成事件（pointerdown -> mousemove -> click），
+      // mousemove 会先调 showUi() 把 uiVisible 改成 true，
+      // 300ms 后这里再读就是 true，于是「想唤出」变成「收起」——
+      // 表现就是控件隐藏后怎么点都唤不出来。
+      clearTimeout(tapTimer);
+      tapTimer = setTimeout(function () {
+        if (uiVisibleAtTap) hideUi();
+        else showUi();
+      }, 300);
+    });
+
+    // 记录按下瞬间的显隐状态，供上面的单击切换使用。
+    // pointerdown 一定早于合成出来的 mousemove / click。
+    //
+    // 判据直接读 DOM 上的 hidden 类，而不是读 uiVisible 变量：
+    // 原生全屏（浏览器自带的全屏按钮）进出时，浏览器会自己改视频层的显示，
+    // 变量和 DOM 会不同步，读 DOM 永远是对的。
+    function snapshotUiVisible() {
+      uiVisibleAtTap = !vc.classList.contains('hidden');
+    }
+    video.addEventListener('pointerdown', function () {
+      snapshotUiVisible();
+    });
+    video.addEventListener('touchstart', function () {
+      snapshotUiVisible();
+    }, { passive: true });
+
+    /* ---- 横向滑动快进 / 快退 ----
+       这是 B站 / 抖音 移动端的核心手势：按住画面左右滑，
+       松手才真正跳转。
+
+       关键设计（不是随便定个系数）：
+
+       1. 滑动量按「屏幕宽度 = 全片时长」映射。
+          如果按固定像素换算（比如每秒 10px），2 小时的片滑满屏
+          只走 40 秒，而 20 分钟的片滑满屏能走完全片 —— 手感完全不同。
+          按比例映射后，任何长度的片子滑满屏都是一整段，符合直觉。
+
+       2. 拖动中只改预览，不动 video.currentTime。
+          每帧改 currentTime 会不断触发 seek、反复解码，
+          手机上表现为卡顿甚至花屏。松手才 seek 一次。
+
+       3. 只有水平位移明显大于垂直位移才判定为横向滑动。
+          否则会和页面滚动、上滑下拉手势打架。
+
+       4. 滑动中禁用 UI 显隐，避免松手瞬间控件闪一下。
+    */
+
+    var swipe = {
+      active: false,
+      decided: false,     // 是否已判定为横向滑动
+      startX: 0,
+      startY: 0,
+      startTime: 0,
+      targetTime: 0,
+      pointerId: null,
+      lastEndAt: 0        // 上次滑动结束时间，用于抑制随后的 click
+    };
+
+    // 横向位移超过这个像素才开始判定，避免轻点被当成滑动
+    var SWIPE_THRESHOLD = 12;
+
+    var swipeTip = el('div', 'vc-swipe-tip');
+    var swipeTipTime = el('div', 'vc-swipe-tip-time', '00:00');
+    var swipeTipDelta = el('div', 'vc-swipe-tip-delta', '');
+    swipeTip.appendChild(swipeTipTime);
+    swipeTip.appendChild(swipeTipDelta);
+    vc.appendChild(swipeTip);
+
+    function swipeBegin(e) {
+      if (!isFinite(video.duration) || video.duration <= 0) return;
+      var p = e.touches ? e.touches[0] : e;
+      swipe.active = true;
+      swipe.decided = false;
+      swipe.startX = p.clientX;
+      swipe.startY = p.clientY;
+      swipe.startTime = video.currentTime;
+      swipe.targetTime = video.currentTime;
+      swipe.pointerId = e.pointerId;
+    }
+
+    function swipeMove(e) {
+      if (!swipe.active) return;
+      var p = e.touches ? e.touches[0] : e;
+      var dx = p.clientX - swipe.startX;
+      var dy = p.clientY - swipe.startY;
+
+      // 还没判定方向：等位移够大再决定
+      if (!swipe.decided) {
+        if (Math.abs(dx) < SWIPE_THRESHOLD && Math.abs(dy) < SWIPE_THRESHOLD) return;
+        // 垂直方向更大 → 不是横向滑动，交还给页面
+        if (Math.abs(dy) > Math.abs(dx)) {
+          swipe.active = false;
+          return;
+        }
+        swipe.decided = true;
+        vc.classList.add('swiping');
+        showUi();
+      }
+
+      e.preventDefault();
+
+      // 屏幕宽度 = 全片时长
+      var rect = video.getBoundingClientRect();
+      var deltaSec = (dx / rect.width) * video.duration;
+      var t = swipe.startTime + deltaSec;
+      t = Math.max(0, Math.min(video.duration, t));
+      swipe.targetTime = t;
+
+      // 只更新预览
+      var sign = t >= swipe.startTime ? '+' : '-';
+      var diff = Math.abs(Math.round(t - swipe.startTime));
+      swipeTipTime.textContent = fmtTime(t) + ' / ' + fmtTime(video.duration);
+      swipeTipDelta.textContent = sign + fmtTime(diff);
+      swipeTipDelta.className = 'vc-swipe-tip-delta ' + (sign === '+' ? 'fwd' : 'back');
+      swipeTip.classList.add('show');
+
+      // 预览进度条跟着走
+      played.style.width = (t / video.duration) * 100 + '%';
+      thumb.style.left = (t / video.duration) * 100 + '%';
+      curEl.textContent = fmtTime(t);
+    }
+
+    function swipeEnd(e) {
+      if (!swipe.active) return;
+      var wasSwiping = swipe.decided;
+      swipe.active = false;
+      swipe.decided = false;
+      vc.classList.remove('swiping');
+
+      if (!wasSwiping) {
+        // 没达到滑动判定，当作普通点击处理
+        return;
+      }
+
+      swipe.lastEndAt = Date.now();
+      swipeTip.classList.remove('show');
+      // 松手才真正 seek，只跳一次
+      video.currentTime = swipe.targetTime;
+      updateProgress();
+      // 滑完让控件自动淡出，符合"手势优先"的沉浸感
+      clearTimeout(tapTimer);
+      tapTimer = setTimeout(function () { hideUi(); }, 900);
+    }
+
+    // 触摸与鼠标都支持；桌面端按住拖动也能用
+    if (window.PointerEvent) {
+      video.addEventListener('pointerdown', swipeBegin);
+      video.addEventListener('pointermove', swipeMove, { passive: false });
+      video.addEventListener('pointerup', swipeEnd);
+      video.addEventListener('pointercancel', swipeEnd);
+    } else {
+      video.addEventListener('touchstart', swipeBegin, { passive: true });
+      video.addEventListener('touchmove', swipeMove, { passive: false });
+      video.addEventListener('touchend', swipeEnd);
+      video.addEventListener('mousedown', swipeBegin);
+      video.addEventListener('mousemove', swipeMove);
+      video.addEventListener('mouseup', swipeEnd);
+    }
+
+    /* ---- 倍速 ---- */
+    var RATES = [1, 1.25, 1.5, 2, 0.75];
+    var rateIdx = 0;
+    rateBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      rateIdx = (rateIdx + 1) % RATES.length;
+      video.playbackRate = RATES[rateIdx];
+      rateBtn.textContent = RATES[rateIdx].toFixed(2).replace(/0$/, '') + '×';
+    });
+
+    /* ---- 全屏 ----
+       用 Fullscreen API 让 video-wrap 铺满；不支持时退回视频元素原生全屏（iOS 兜底）。
+       注意：手机浏览器自带的「快捷全屏」（地址栏/系统手势那套）和页面自定义控件不兼容，
+       那是浏览器行为，页面改不了；页面内的全屏按钮走的就是下面这套，正常。
+    */
+    function isFullscreen() {
+      return document.fullscreenElement || document.webkitFullscreenElement;
+    }
+
+    fullBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (isFullscreen()) {
+        if (document.exitFullscreen) document.exitFullscreen();
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      } else {
+        var target = videoWrap;
+        if (target.requestFullscreen) target.requestFullscreen();
+        else if (target.webkitRequestFullscreen) target.webkitRequestFullscreen();
+        else if (video.webkitEnterFullscreen) video.webkitEnterFullscreen(); // iOS 兜底
+      }
+    });
+
+    document.addEventListener('fullscreenchange', function () {
+      fullBtn.innerHTML = isFullscreen() ? ICON.exitFull : ICON.full;
+    });
+
+    /* ---- 控件显隐 ----
+       桌面：鼠标在播放器上移动 -> 自动浮现，静止 3.5 秒后淡出
+       手机：点击屏幕 -> 浮现；再点一下 -> 收起
+    */
+    var uiVisible = true;
+    var hideTimer = null;
+
+    // 点击切换控件显隐时用的「按下前」状态快照（见单击处理里的说明）
+    var uiVisibleAtTap = true;
+
+    function showUi() {
+      uiVisible = true;
+      vc.classList.remove('hidden');
+      clearTimeout(hideTimer);
+      // 只在播放中自动隐藏；暂停时保持可见，方便操作
+      if (!video.paused) {
+        hideTimer = setTimeout(hideUi, 3500);
+      }
+    }
+
+    function hideUi() {
+      uiVisible = false;
+      vc.classList.add('hidden');
+      clearTimeout(hideTimer);
+    }
+
+    // 鼠标移动：整个播放区域都算，不要求正好压在控件上。
+    //
+    // 这里保持「一动就唤出」：单击切换用的是 pointerdown 时的状态快照，
+    // 所以 mousemove 提前唤出不会把「点一下唤出」变成「点一下收起」。
+    videoWrap.addEventListener('mousemove', function () {
+      showUi();
+    });
+    videoWrap.addEventListener('mouseleave', function () {
+      if (!video.paused) hideUi();
+    });
+
+    // 任何控件交互都重置隐藏计时
+    vc.addEventListener('pointerdown', showUi);
+
+    video.addEventListener('play', showUi);
+    video.addEventListener('pause', function () {
+      clearTimeout(hideTimer);
+      showUi();
+    });
+
+    // 初始化
+    setPlayIcon();
+    updateProgress();
+    showUi();
+  }
+
+  function renderPlayer(d) {
+    currentVideo = d;
+    playerVid.textContent = d.VID || d.Title || fileNameOf(d.FileName) || ('#' + d.DataID);
+
+    // 播放器
+    videoWrap.innerHTML = '';
+    if (!d.Playable) {
+      videoWrap.appendChild(el('div', 'player-error', '文件不存在或无法访问'));
+    } else {
+      var video = document.createElement('video');
+      // 关键：不启用原生 controls，改用自写控件层。
+      // 原生控件在移动端全屏后会自动隐藏，进度条随之消失，无法快进。
+      video.controls = false;
+      video.autoplay = true;
+      video.playsInline = true;
+      video.setAttribute('playsinline', '');
+      video.setAttribute('webkit-playsinline', '');
+      video.setAttribute('x5-playsinline', '');
+      video.preload = 'metadata';
+      video.src = withToken(API + d.StreamUrl);
+      video.addEventListener('error', function () {
+        var box = el('div', 'player-error');
+        box.innerHTML = '这个格式浏览器可能不支持。<br>如果是 .wmv / .avi 等格式，需要服务端转码。';
+        videoWrap.appendChild(box);
+      });
+      // 开始播放时记一次观看（写 ViewCount / ViewDate，桌面端「最近播放」依赖它）
+      video.addEventListener('playing', function once() {
+        video.removeEventListener('playing', once);
+        markWatched(d.DataID);
+      });
+      videoWrap.appendChild(video);
+      buildControls(video, d);
+    }
+
+    // 元信息
+    playerMeta.innerHTML = '';
+    if (d.Title) playerMeta.appendChild(el('div', 'player-title', d.Title));
+
+    // 评分 + 收藏
+    playerMeta.appendChild(buildActions(d));
+
+    var row = el('div', 'meta-row');
+    if (d.ReleaseDate) row.appendChild(el('span', 'meta-chip', d.ReleaseDate));
+    if (d.Duration) row.appendChild(el('span', 'meta-chip', formatDuration(d.Duration)));
+    if (d.Size) row.appendChild(el('span', 'meta-chip', formatSize(d.Size)));
+    if (d.Director) row.appendChild(el('span', 'meta-chip', '导演 ' + d.Director));
+    if (d.Studio) row.appendChild(el('span', 'meta-chip', d.Studio));
+    playerMeta.appendChild(row);
+
+    if (d.Actors && d.Actors.length) {
+      var ar = el('div', 'meta-row');
+      d.Actors.forEach(function (a) { ar.appendChild(el('span', 'meta-chip', a)); });
+      playerMeta.appendChild(ar);
+    }
+    if (d.Genres && d.Genres.length) {
+      var gr = el('div', 'meta-row');
+      d.Genres.slice(0, 8).forEach(function (g) { gr.appendChild(el('span', 'meta-chip', g)); });
+      playerMeta.appendChild(gr);
+    }
+
+    // 相似推荐（异步加载，不阻塞播放）
+    var similarBox = el('div', 'similar-section');
+    playerMeta.appendChild(similarBox);
+    loadSimilar(d.DataID, similarBox);
+  }
+
+  /**
+   * 构建评分与收藏控件。
+   *
+   * 桌面端把「我的收藏」定义为 Grade > 0，
+   * 所以这里的「收藏」按钮本质是「打 5 星」，两者共用同一个字段。
+   * 这样手机端点收藏，桌面端立刻能看到，数据完全一致。
+   */
+  function buildActions(d) {
+    var wrap = el('div', 'actions-row');
+
+    var starRow = el('div', 'star-row');
+    var ratingText = el('span', 'rating-text');
+
+    var current = d.Grade || 0;
+
+    function paint(grade) {
+      current = grade;
+      Array.prototype.forEach.call(starRow.querySelectorAll('.star'), function (s, i) {
+        s.classList.toggle('on', grade >= i + 1);
+      });
+      ratingText.textContent = grade > 0 ? grade.toFixed(1) + ' 星' : '未评分';
+      favBtn.classList.toggle('on', grade > 0);
+    }
+
+    for (var i = 1; i <= 5; i++) {
+      (function (n) {
+        var star = el('button', 'star');
+        star.type = 'button';
+        star.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8L12 17.3 5.9 20.6l1.4-6.8L2.2 9.1l6.9-.8L12 2z"/></svg>';
+        star.addEventListener('click', function () {
+          // 点当前星级 = 取消（归零），符合直觉
+          var next = (current === n) ? 0 : n;
+          setGrade(d.DataID, next, paint);
+        });
+        starRow.appendChild(star);
+      })(i);
+    }
+    starRow.appendChild(ratingText);
+
+    var favBtn = el('button', 'fav-btn');
+    favBtn.type = 'button';
+    favBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-8-5.1-8-11a4.6 4.6 0 018-3 4.6 4.6 0 018 3c0 5.9-8 11-8 11z"/></svg><span>收藏</span>';
+    favBtn.addEventListener('click', function () {
+      var next = current > 0 ? 0 : 5;   // 未收藏则打满 5 星，已收藏则取消
+      setGrade(d.DataID, next, paint);
+    });
+
+    paint(current);
+
+    wrap.appendChild(starRow);
+    wrap.appendChild(favBtn);
+    return wrap;
+  }
+
+  function closePlayer() {
+    // 已关闭就不重复执行：连点关闭按钮会解锁两次，导致锁计数为负
+    if (!playerPage.classList.contains('show'))
+      return;
+
+    // 退出播放页时若还在投屏，一并停止。
+    // 否则投影仪会继续播放，而手机上已经没有任何入口能控制它。
+    if (castCurrent) {
+      try {
+        apiFetch(API + '/api/cast/stop', { method: 'POST' });
+      } catch (e) { /* 忽略 */ }
+      castCurrent = null;
+      castBtn.classList.remove('on');
+      if (castTimer) { clearInterval(castTimer); castTimer = null; }
+      if (castCleanup) { castCleanup(); castCleanup = null; }
+    }
+
+    // 先让界面立即响应，再做资源释放。
+    // 顺序很重要：某些移动浏览器在释放解码资源时会短暂卡顿，
+    // 如果先释放再切界面，用户会看到"点了没反应"。
+    playerPage.classList.remove('show');
+    unlockScroll();
+
+    // 让飞行中的详情请求作废：否则关闭后迟到的响应会往
+    // 已清空的 videoWrap 里塞回一个播放器，表现为「关了又自己打开」。
+    playerToken++;
+
+    // 主动点关闭时，要把 openPlayer 压入的历史记录回退掉，
+    // 否则浏览器的返回栈里会残留一条，导致返回键要按两次。
+    if (!playerClosingByBack) {
+      try {
+        history.back();
+      } catch (e) { /* 忽略 */ }
+    }
+    playerClosingByBack = false;
+
+    var video = videoWrap.querySelector('video');
+
+    // 用一个宏任务把释放动作推迟到界面重绘之后，
+    // 这样即使 releaseVideo 卡顿，界面已经先关掉了。
+    setTimeout(function () {
+      releaseVideo(video);
+      videoWrap.innerHTML = '';
+      currentVideo = null;
+    }, 0);
+  }
+
+  /* ============================================================
+     投屏（DLNA）
+     ============================================================ */
+
+  var castDevices = [];
+  var castCurrent = null;    // 当前投屏到的设备名
+
+  /**
+   * 打开投屏面板并搜索设备。
+   *
+   * 搜索要 2 秒左右，所以先开面板显示「正在搜索」，
+   * 不要让用户点了按钮之后界面毫无反应。
+   */
+  function openCastSheet() {
+    castMask.classList.add('show');
+    castSheet.classList.add('show');
+    lockScroll();
+    searchCastDevices(false);
+  }
+
+  function closeCastSheet() {
+    castMask.classList.remove('show');
+    castSheet.classList.remove('show');
+    unlockScroll();
+  }
+
+  function searchCastDevices(forceRefresh) {
+    castTip.textContent = '正在搜索局域网内的投影仪…';
+    castTip.style.display = '';
+    castList.innerHTML = '';
+    castRefresh.classList.add('spinning');
+
+    var url = API + '/api/cast/devices' + (forceRefresh ? '?refresh=1' : '');
+    apiFetch(url)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        castDevices = data.Items || [];
+        castCurrent = data.current || null;
+        renderCastList();
+      })
+      .catch(function (err) {
+        castTip.textContent = '搜索失败：' + err.message;
+      })
+      .then(function () {
+        castRefresh.classList.remove('spinning');
+      });
+  }
+
+  function renderCastList() {
+    castList.innerHTML = '';
+
+    if (!castDevices.length) {
+      castTip.style.display = '';
+      castTip.textContent = '没找到可投屏的设备。请确认投影仪已开机、和电脑连的是同一个 WiFi。';
+      return;
+    }
+
+    castTip.style.display = 'none';
+
+    castDevices.forEach(function (d) {
+      var item = el('div', 'cast-item' + (d.Name === castCurrent ? ' on' : ''));
+
+      var icon = el('div', 'cast-item-icon');
+      icon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">' +
+        '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8"/><path d="M12 16v4"/></svg>';
+      item.appendChild(icon);
+
+      var main = el('div', 'cast-item-main');
+      main.appendChild(el('div', 'cast-item-name', d.Name));
+      main.appendChild(el('div', 'cast-item-sub', d.Model || d.Ip));
+      item.appendChild(main);
+
+      if (d.Name === castCurrent) {
+        item.appendChild(el('div', 'cast-item-state', '投屏中'));
+      }
+
+      item.addEventListener('click', function () { doCast(d.Name); });
+      castList.appendChild(item);
+    });
+  }
+
+  /**
+   * 开始投屏。
+   *
+   * 成功后不关播放页，而是把播放页切成「遥控器」形态：
+   * 投屏时画面在投影仪上，手机就成了遥控器——如果直接关掉播放页，
+   * 用户就没有进度条、没法快进暂停，只能跑回投影仪按遥控器。
+   */
+  function doCast(deviceName) {
+    // 播放页用 currentVideo，详情页用 currentDetail，两个入口都要能投
+    var d = currentVideo || currentDetail;
+    if (!d) return;
+
+    castTip.style.display = '';
+    castTip.textContent = '正在连接 ' + deviceName + '…';
+
+    apiFetch(API + '/api/cast/play/' + d.DataID + '?device=' + encodeURIComponent(deviceName), {
+      method: 'POST'
+    })
+      .then(function (r) {
+        return r.json().then(function (j) {
+          if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+          return j;
+        });
+      })
+      .then(function (j) {
+        castCurrent = j.device;
+        castBtn.classList.add('on');
+        closeCastSheet();
+
+        // 从详情页投屏时播放页是关着的，要先把播放页打开，
+        // 否则没有遥控界面可用（用户只能在投影仪那边按遥控器）。
+        if (!playerPage.classList.contains('show')) {
+          var target = currentVideo || currentDetail;
+          if (target) {
+            // 详情页 z-index(210) 高于播放页(200)，不清掉它的 show
+            // 就会盖在遥控界面上面，用户看到的还是详情页。
+            var fromDetail = detailPage.classList.contains('show');
+            if (fromDetail) {
+              detailPage.classList.remove('show');
+              unlockScroll();
+            }
+
+            enterCastMode(j.device, target);
+            playerPage.classList.add('show');
+            lockScroll();
+
+            // 从详情页进来时替换历史（和 playFromDetail 一致），
+            // 否则返回键要按两次才能回首页。
+            try {
+              if (fromDetail) history.replaceState({ page: 'player' }, '');
+              else history.pushState({ page: 'player' }, '');
+            } catch (e) { /* 忽略 */ }
+          }
+        } else {
+          enterCastMode(j.device, currentVideo || currentDetail);
+        }
+        toast('已投屏到 ' + j.device);
+      })
+      .catch(function (err) {
+        castTip.textContent = '投屏失败：' + err.message;
+      });
+  }
+
+  /* ---------- 投屏遥控界面 ---------- */
+
+  var castTimer = null;
+  var castDuration = 0;     // 秒
+  var castPosition = 0;     // 秒
+  var castCleanup = null;   // 退出投屏界面时解绑拖拽监听
+
+  /**
+   * 把播放页切成遥控形态。
+   *
+   * 用 DOM 直接替换 videoWrap 的内容：原来这里是个 &lt;video&gt;，
+   * 投屏后本机不再解码，必须显式释放，否则手机一直在后台
+   * 拉流、耗电、还和投影仪抢带宽。
+   */
+  function enterCastMode(deviceName, videoData) {
+    // 上一次投屏的拖拽监听先解绑，避免重复叠加
+    if (castCleanup) { castCleanup(); castCleanup = null; }
+
+    // 记下正在投的片子，停止投屏时用它恢复本机播放
+    currentVideo = videoData || currentVideo;
+
+    // 播放页标题同步（从详情页投屏时播放页是刚打开的，标题还是空的）
+    if (currentVideo) {
+      playerVid.textContent = currentVideo.VID || currentVideo.Title
+        || fileNameOf(currentVideo.FileName) || ('#' + currentVideo.DataID);
+    }
+
+    // 释放本机播放器
+    var old = videoWrap.querySelector('video');
+    if (old) releaseVideo(old);
+    videoWrap.innerHTML = '';
+
+    var panel = el('div', 'cast-panel');
+
+    var ring = el('div', 'cast-panel-ring');
+    ring.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M2 17.5a2 2 0 012.5 2M2 13.5a6 6 0 016 6M2 9.5a10 10 0 0110 10"/>' +
+      '<path d="M9.5 3.5H19a2 2 0 012 2v10a2 2 0 01-2 2h-2.5"/></svg>';
+    panel.appendChild(ring);
+
+    panel.appendChild(el('div', 'cast-panel-device', deviceName));
+
+    var stateEl = el('div', 'cast-panel-state', '正在连接…');
+    panel.appendChild(stateEl);
+
+    // 进度条
+    var prog = el('div', 'cast-progress');
+    var track = el('div', 'cast-progress-track');
+    var bar = el('div', 'cast-progress-bar');
+    // 拖拽把手：视觉上是个小圆点，实际触摸区靠 track 的加大 padding
+    var knob = el('div', 'cast-progress-knob');
+    bar.appendChild(knob);
+    track.appendChild(bar);
+    prog.appendChild(track);
+
+    var times = el('div', 'cast-progress-time');
+    var curEl = el('span', null, '00:00');
+    var durEl = el('span', null, '00:00');
+    times.appendChild(curEl);
+    times.appendChild(el('span', 'cast-progress-sep', '/'));
+    times.appendChild(durEl);
+    prog.appendChild(times);
+    panel.appendChild(prog);
+
+    // 控制按钮
+    var row = el('div', 'cast-controls');
+    var backBtnEl = castButton(ICON.back10);
+    var toggleEl = castButton(ICON.pause);
+    var fwdBtnEl = castButton(ICON.fwd10);
+    row.appendChild(backBtnEl);
+    row.appendChild(toggleEl);
+    row.appendChild(fwdBtnEl);
+    panel.appendChild(row);
+
+    var stopBtn = el('button', 'cast-disconnect', '停止投屏');
+    stopBtn.type = 'button';
+    panel.appendChild(stopBtn);
+
+    videoWrap.appendChild(panel);
+
+    var playing = true;
+
+    backBtnEl.addEventListener('click', function () { castSeekBy(-10); });
+    fwdBtnEl.addEventListener('click', function () { castSeekBy(10); });
+    toggleEl.addEventListener('click', function () {
+      var action = playing ? 'pause' : 'resume';
+      apiFetch(API + '/api/cast/' + action, { method: 'POST' })
+        .then(function () {
+          playing = !playing;
+          toggleEl.innerHTML = playing ? ICON.pause : ICON.play;
+          stateEl.textContent = playing ? '正在播放' : '已暂停';
+        })
+        .catch(function () { /* 忽略 */ });
+    });
+    stopBtn.addEventListener('click', function () { stopCast(); });
+
+    /* ---------- 进度条拖拽 ---------- */
+
+    var dragging = false;
+    var dragTarget = 0;      // 拖拽中预计要跳到的秒数
+
+    /**
+     * 根据手指/鼠标位置算出目标秒数。
+     */
+    function posFromEvent(e) {
+      var rect = track.getBoundingClientRect();
+      var x = (e.touches && e.touches.length) ? e.touches[0].clientX : e.clientX;
+      var ratio = (x - rect.left) / rect.width;
+      if (ratio < 0) ratio = 0;
+      if (ratio > 1) ratio = 1;
+      return Math.round(ratio * castDuration);
+    }
+
+    /**
+     * 拖拽中只更新界面，不发请求。
+     *
+     * 拖动时如果每一帧都发 Seek，投影仪会收到几十条指令，
+     * 卡住甚至断开——这是 DLNA 投屏拖动最常见的错误做法。
+     * 正确做法：拖动时本地预览，松手才发一次。
+     */
+    function applyDragPreview(sec) {
+      dragTarget = sec;
+      var ratio = castDuration > 0 ? sec / castDuration : 0;
+      bar.style.width = (ratio * 100) + '%';
+      curEl.textContent = fmtTime(sec);
+    }
+
+    function onDragStart(e) {
+      if (castDuration <= 0) return;    // 还没拿到总时长，无法定位
+      dragging = true;
+      track.classList.add('dragging');
+      applyDragPreview(posFromEvent(e));
+      e.preventDefault();
+    }
+
+    function onDragMove(e) {
+      if (!dragging) return;
+      applyDragPreview(posFromEvent(e));
+      e.preventDefault();
+    }
+
+    function onDragEnd(e) {
+      if (!dragging) return;
+      dragging = false;
+      track.classList.remove('dragging');
+
+      var target = dragTarget;
+      castPosition = target;
+      castSeekTo(target);
+      if (e && e.cancelable) e.preventDefault();
+    }
+
+    // 用 Pointer Events 一套代码兼容鼠标和触摸；
+    // 不支持时退回 mouse + touch 两套。
+    //
+    // move/up 挂在 window 上：手指拖出进度条范围也能继续拖。
+    // 但必须能解绑，否则每次进投屏页都会多叠一份监听，
+    // 拖一次进度条会发出 N 次 seek。
+    var dragEvents = window.PointerEvent
+      ? ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']
+      : ['mousedown', 'mousemove', 'mouseup', null];
+
+    track.addEventListener(dragEvents[0], onDragStart, { passive: false });
+    window.addEventListener(dragEvents[1], onDragMove, { passive: false });
+    window.addEventListener(dragEvents[2], onDragEnd);
+    if (dragEvents[3]) window.addEventListener(dragEvents[3], onDragEnd);
+
+    // 非 Pointer 环境额外补 touch（手机浏览器大多支持 Pointer，
+    // 但老版安卓 WebView 只认 touch）
+    var useTouch = !window.PointerEvent;
+    if (useTouch) {
+      track.addEventListener('touchstart', onDragStart, { passive: false });
+      window.addEventListener('touchmove', onDragMove, { passive: false });
+      window.addEventListener('touchend', onDragEnd);
+    }
+
+    // 面板被替换或销毁时解绑，避免监听泄漏
+    castCleanup = function () {
+      track.removeEventListener(dragEvents[0], onDragStart);
+      window.removeEventListener(dragEvents[1], onDragMove);
+      window.removeEventListener(dragEvents[2], onDragEnd);
+      if (dragEvents[3]) window.removeEventListener(dragEvents[3], onDragEnd);
+      if (useTouch) {
+        window.removeEventListener('touchmove', onDragMove);
+        window.removeEventListener('touchend', onDragEnd);
+      }
+      dragging = false;
+    };
+
+    // 轮询状态。
+    // 间隔 2 秒：DLNA 是请求-应答协议，每次查询约 100-300ms，
+    // 查太勤会把投影仪的控制端口压满，反而卡顿。
+    function poll() {
+      if (!castCurrent) return;
+      // 拖拽期间跳过：轮询回来的旧位置会把用户正在拖的进度条拽回去
+      if (dragging) return;
+      apiFetch(API + '/api/cast/status')
+        .then(function (r) { return r.json(); })
+        .then(function (s) {
+          castPosition = parseTime(s.position);
+          castDuration = parseTime(s.duration);
+
+          if (s.duration && s.duration !== '00:00:00') durEl.textContent = fmtTime(castDuration);
+          curEl.textContent = fmtTime(castPosition);
+
+          if (castDuration > 0) {
+            bar.style.width = Math.min(100, (castPosition / castDuration) * 100) + '%';
+          }
+
+          if (s.state === 'PLAYING') {
+            playing = true;
+            toggleEl.innerHTML = ICON.pause;
+            stateEl.textContent = '正在播放';
+          } else if (s.state === 'PAUSED_PLAYBACK') {
+            playing = false;
+            toggleEl.innerHTML = ICON.play;
+            stateEl.textContent = '已暂停';
+          } else if (s.state === 'STOPPED') {
+            stateEl.textContent = '已停止';
+          }
+        })
+        .catch(function () { /* 单次失败不影响后续 */ });
+    }
+
+    poll();
+    if (castTimer) clearInterval(castTimer);
+    castTimer = setInterval(poll, 2000);
+  }
+
+  function castButton(iconHtml) {
+    var b = el('button', 'cast-ctrl-btn');
+    b.type = 'button';
+    b.innerHTML = iconHtml;
+    return b;
+  }
+
+  /**
+   * 相对跳转。
+   *
+   * DLNA 的 Seek 只接受**绝对时间**，没有「快进 10 秒」这种动作，
+   * 所以必须自己拿当前进度加上去再发。
+   * 这也是进度需要轮询的原因之一：不快门知道当前位置就没法跳。
+   */
+  function castSeekBy(delta) {
+    var target = castPosition + delta;
+    if (target < 0) target = 0;
+    if (castDuration > 0 && target > castDuration) target = castDuration;
+    castSeekTo(target, (delta > 0 ? '快进 ' : '后退 ') + Math.abs(delta) + ' 秒');
+  }
+
+  /**
+   * 跳到绝对位置（拖拽松手时用）。
+   * @param seconds 目标秒数
+   * @param tip     可选，成功后的提示文案；不传则提示跳转时间
+   */
+  function castSeekTo(seconds, tip) {
+    var target = Math.max(0, Math.floor(seconds));
+    if (castDuration > 0 && target > castDuration) target = castDuration;
+
+    apiFetch(API + '/api/cast/seek?seconds=' + target, { method: 'POST' })
+      .then(function () {
+        castPosition = target;
+        toast(tip || ('已跳到 ' + fmtTime(target)));
+      })
+      .catch(function () { /* 忽略 */ });
+  }
+
+  /** "00:12:34" / "12:34" -> 秒 */
+  function parseTime(s) {
+    if (!s) return 0;
+    var parts = String(s).split(':');
+    var sec = 0;
+    for (var i = 0; i < parts.length; i++) {
+      sec = sec * 60 + (parseInt(parts[i], 10) || 0);
+    }
+    return sec;
+  }
+
+  /**
+   * 停止投屏并恢复本机播放界面。
+   */
+  function stopCast() {
+    // 界面恢复不依赖后端成败：
+    // 后端可能因为服务重启、网络抖动而失败，但用户点了「停止投屏」
+    // 就必须退出投屏界面，否则会卡在遥控页没法操作。
+    function restoreLocal() {
+      castCurrent = null;
+      castBtn.classList.remove('on');
+      if (castTimer) { clearInterval(castTimer); castTimer = null; }
+      if (castCleanup) { castCleanup(); castCleanup = null; }
+      videoWrap.innerHTML = '';
+      var d = currentVideo || currentDetail;
+      if (d) renderPlayer(d);
+    }
+
+    apiFetch(API + '/api/cast/stop', { method: 'POST' })
+      .then(function () {
+        restoreLocal();
+        toast('已停止投屏');
+      })
+      .catch(function () {
+        restoreLocal();
+        toast('已断开投屏');
+      });
+  }
+
+  castBtn.addEventListener('click', function () {
+    // 已投屏时点一下 = 停止，符合「开关式」直觉
+    if (castCurrent) {
+      stopCast();
+    } else {
+      openCastSheet();
+    }
+  });
+
+  /**
+   * 页面加载时恢复「上次在投屏」的状态。
+   *
+   * 场景：手机页面还开着，电脑那边 Jvedio 重启了。
+   * 服务端的内存状态清空，但投影仪可能还在放（它拉着流，连接会断），
+   * 或者用户以为还在投其实已经停了。这里主动问一次服务端，
+   * 以服务端为准，避免界面显示「投屏中」实际控制不了。
+   */
+  function syncCastStateOnLoad() {
+    apiFetch(API + '/api/cast/status')
+      .then(function (r) { return r.json(); })
+      .then(function (s) {
+        if (s.casting) {
+          castCurrent = s.device;
+          castBtn.classList.add('on');
+          // 如果播放页正开着且是同一个片子，直接进遥控界面
+          if (playerPage.classList.contains('show') && currentVideo) {
+            enterCastMode(s.device);
+          }
+        } else {
+          castCurrent = null;
+          castBtn.classList.remove('on');
+        }
+      })
+      .catch(function () { /* 忽略 */ });
+  }
+
+  syncCastStateOnLoad();
+
+  castMask.addEventListener('click', closeCastSheet);
+  castRefresh.addEventListener('click', function () { searchCastDevices(true); });
+
+  /**
+   * 播放页内换片（点相似推荐）。
+   *
+   * 不能写成 closePlayer() + openPlayer()：
+   * closePlayer 会 history.back()，紧接着 openPlayer 又 pushState，
+   * 形成「回退+前进」，移动端会因此丢失历史栈，返回键失效。
+   *
+   * 这里只替换视频内容与历史条目的数据，界面保持打开，
+   * 返回键行为与换片前完全一致（按一次回列表）。
+   */
+  function switchPlayerVideo(dataId) {
+    var old = videoWrap.querySelector('video');
+    if (old) {
+      releaseVideo(old);
+      videoWrap.innerHTML = '';
+    }
+    playerMeta.innerHTML = '';
+    videoWrap.innerHTML = '<div class="loading" style="color:#8A8782"><div class="spinner"></div>打开中…</div>';
+
+    // 就地更新历史条目，不新增
+    try { history.replaceState({ player: dataId }, ''); } catch (e) { /* 忽略 */ }
+
+    var token = ++playerToken;
+
+    apiFetch(API + '/api/video/' + dataId)
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (token !== playerToken) return;
+        renderPlayer(d);
+      })
+      .catch(function (err) {
+        if (token !== playerToken) return;
+        videoWrap.innerHTML = '';
+        videoWrap.appendChild(el('div', 'player-error', '无法加载详情：' + err.message));
+      });
+  }
+
+  /**
+   * 规范地停止并释放 video 元素。
+   *
+   * 早期实现直接 innerHTML = '' 移除正在播放的 video，
+   * 浏览器会在解码线程上做清理，部分移动端（Android Chrome / 鸿蒙 WebView）
+   * 会因此卡住，表现为点关闭后界面假死。
+   *
+   * 正确顺序：pause 停止解码 -> 清 src 让浏览器放弃缓冲 -> load() 复位。
+   */
+  function releaseVideo(video) {
+    if (!video)
+      return;
+
+    try {
+      video.pause();
+    } catch (e) { /* 已销毁 */ }
+
+    try {
+      // 移除 src 后调 load()，浏览器会中止当前请求并释放缓冲
+      video.removeAttribute('src');
+      video.srcObject = null;
+      video.load();
+    } catch (e) { /* 个别浏览器不支持 */ }
+
+    // 移除事件监听，避免持有闭包引用
+    try {
+      video.onloadedmetadata = null;
+      video.ontimeupdate = null;
+      video.onerror = null;
+    } catch (e) { /* 忽略 */ }
+  }
+
+  backBtn.addEventListener('click', closePlayer);
+
+  /* ---------- 筛选与搜索 ---------- */
+
+  function loadLibraries() {
+    apiFetch(API + '/api/libraries')
+      .then(function (r) { return r.json(); })
+      .then(function (libs) {
+        libsEl.innerHTML = '';
+        var all = el('button', 'lib-chip active', '全部');
+        all.dataset.db = '0';
+        libsEl.appendChild(all);
+
+        libs.forEach(function (lib) {
+          var chip = el('button', 'lib-chip', lib.Name);
+          chip.dataset.db = String(lib.DBId);
+          libsEl.appendChild(chip);
+        });
+
+        // 恢复上次选中的库（页面重建后状态要一致，否则列表范围悄悄变了）
+        if (state.dbId > 0) {
+          Array.prototype.forEach.call(libsEl.children, function (c) {
+            c.classList.toggle('active', (parseInt(c.dataset.db, 10) || 0) === state.dbId);
+          });
+        }
+
+        libsEl.addEventListener('click', function (e) {
+          var chip = e.target.closest('.lib-chip');
+          if (!chip) return;
+          Array.prototype.forEach.call(libsEl.children, function (c) { c.classList.remove('active'); });
+          chip.classList.add('active');
+          state.dbId = parseInt(chip.dataset.db, 10) || 0;
+          // 切库 = 换了浏览范围，退出「收藏/最近播放」视图
+          reset(true);
+        });
+      })
+      .catch(function () { /* 库列表失败不影响主流程 */ });
+  }
+
+  /**
+   * 重置列表并重新加载。
+   *
+   * exitView: 是否同时把「视图」退回「全部」。
+   *
+   * 为什么要这个参数：state.view（全部/收藏/最近播放）和 state.dbId
+   * （库）、state.keyword（搜索）是**不同维度**的筛选条件，
+   * 但都会收窄结果集。用户切到「我的收藏」后再点其它库或搜索时，
+   * 若不清掉 view，收藏条件会一直叠加，表现为「点了其它功能退不出去」。
+   *
+   * 所以：切库、搜索、应用筛选 —— 这些「用户主动换了浏览范围」的操作
+   * 要 exitView=true；而点击视图标签本身时，view 由点击目标决定。
+   */
+  function reset(exitView) {
+    state.page = 1;
+    state.done = false;
+    state.loading = false;
+
+    // 任何进入列表模式的操作都自动退出随机推荐状态——统一在这里处理，
+    // 避免每个入口各写一遍而漏掉某一个。
+    if (state.mode === 'random') {
+      state.mode = 'list';
+      randomBtn.classList.remove('active');
+    }
+    // 退出随机后旧的快照必须作废，否则下次恢复会把过期的随机结果又摆出来
+    state.randomItems = null;
+
+    if (exitView) {
+      state.view = '';
+      // 同步按钮高亮，否则数据变了但标签还亮着「我的收藏」
+      var tabs = document.querySelectorAll('.view-tab');
+      Array.prototype.forEach.call(tabs, function (t) {
+        t.classList.toggle('on', (t.dataset.view || '') === '');
+      });
+    }
+
+    saveListState();
+    loadPage();
+  }
+
+  /* ---------- 浏览状态持久化 ----------
+     手机上进播放页/全屏后退出，浏览器可能重建页面（内存 state 全丢），
+     表现为「随机推荐点进去看一部，退出来回到最开始的列表页」。
+     把「当前是随机还是列表、哪个库、搜索词、视图、滚动位置」存进
+     sessionStorage，页面重建后原样恢复。sessionStorage 关标签即清，不会长期残留。
+  */
+  var LIST_STATE_KEY = 'jvedio.listState';
+
+  function saveListState() {
+    try {
+      sessionStorage.setItem(LIST_STATE_KEY, JSON.stringify({
+        mode: state.mode,
+        dbId: state.dbId,
+        keyword: state.keyword,
+        view: state.view,
+        randomItems: state.mode === 'random' ? state.randomItems : null,
+        scrollY: window.scrollY || 0
+      }));
+    } catch (e) { /* 隐私模式禁用存储时忽略 */ }
+  }
+
+  function readListState() {
+    try {
+      var raw = sessionStorage.getItem(LIST_STATE_KEY);
+      return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  // 搜索防抖
+  var searchTimer = null;
+  searchInput.addEventListener('input', function () {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(function () {
+      state.keyword = searchInput.value.trim();
+      // 搜索是全局的，退出「收藏/最近播放」视图，
+      // 否则会出现「在收藏里搜不到、但内容其实存在」的困惑
+      reset(true);
+    }, 350);
+  });
+
+  /* ---------- 无限滚动 ---------- */
+
+  var sentinel = null;
+
+  function setupInfiniteScroll() {
+    sentinel = document.createElement('div');
+    sentinel.style.height = '1px';
+    document.body.appendChild(sentinel);
+
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(function (entries) {
+        if (entries[0].isIntersecting) loadPage();
+      }, { rootMargin: '600px' }).observe(sentinel);
+    } else {
+      // 兜底：滚动监听
+      window.addEventListener('scroll', function () {
+        if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 600) loadPage();
+      });
+    }
+
+    // 记滚动位置：播放页退出/页面重建后要能滚回原来的位置
+    var scrollSaveTimer = null;
+    window.addEventListener('scroll', function () {
+      clearTimeout(scrollSaveTimer);
+      scrollSaveTimer = setTimeout(saveListState, 400);
+    }, { passive: true });
+  }
+
+    /* ============================================================
+     视图切换（全部 / 收藏 / 最近播放）
+     ============================================================ */
+
+  var viewTabs = document.getElementById('viewTabs');
+
+  viewTabs.addEventListener('click', function (e) {
+    var tab = e.target.closest('.view-tab');
+    if (!tab) return;
+
+    Array.prototype.forEach.call(viewTabs.children, function (c) { c.classList.remove('on'); });
+    tab.classList.add('on');
+
+    state.view = tab.dataset.view || '';
+    state.mode = 'list';
+    randomBtn.classList.remove('active');
+    // 这里 view 由点击目标决定，不能再让 reset 清掉
+    reset(false);
+  });
+
+  /* ============================================================
+     收藏与评分
+     ============================================================ */
+
+  function postJson(url) {
+    return apiFetch(url, { method: 'POST' }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    });
+  }
+
+  function setGrade(dataId, grade, onDone) {
+    postJson(API + '/api/rate/' + dataId + '?grade=' + grade)
+      .then(function () { if (onDone) onDone(grade); })
+      .catch(function (err) { alert('操作失败：' + err.message); });
+  }
+
+  function markWatched(dataId) {
+    postJson(API + '/api/watched/' + dataId).catch(function () {
+      // 记录观看失败不影响播放
+    });
+  }
+
+  /* ============================================================
+     随机推荐
+     ============================================================ */
+
+  var sectionHead = null;
+
+  /**
+   * 渲染「随机推荐」结果。
+   *
+   * 单独抽出来是为了能在「恢复上次浏览状态」时复用：
+   * 手机上点进播放页再退出时，部分浏览器会重建整个页面（尤其全屏播放后），
+   * 页面重建后 state 是全新的，如果只靠内存里的 state 就会退回默认列表页。
+   */
+  function renderRandomItems(items) {
+    grid.innerHTML = '';
+
+    var head = el('div', 'section-head');
+    var title = el('div', 'section-title', '随机推荐');
+    var again = el('button', 'section-action', '换一批');
+    again.addEventListener('click', function () { showRandom(); });
+    head.appendChild(title);
+    head.appendChild(again);
+    grid.appendChild(head);
+
+    if (!items.length) {
+      grid.appendChild(el('div', 'empty', '没有可推荐的内容'));
+    } else {
+      items.forEach(function (item) { grid.appendChild(renderCard(item)); });
+    }
+    countBadge.textContent = items.length + ' 部';
+  }
+
+  function showRandom() {
+    state.mode = 'random';
+    randomBtn.classList.add('active');
+
+    // 随机推荐与「收藏/最近播放」是互斥的两种浏览方式：
+    // 留在收藏视图里点随机，会让用户以为随机结果被限制了。
+    // 这里主动退出视图，标签高亮同步回「全部」。
+    if (state.view) {
+      state.view = '';
+      var tabs = document.querySelectorAll('.view-tab');
+      Array.prototype.forEach.call(tabs, function (t) {
+        t.classList.toggle('on', (t.dataset.view || '') === '');
+      });
+    }
+
+    grid.innerHTML = '';
+    grid.appendChild(el('div', 'loading', '')).innerHTML = '<div class="spinner"></div>随机挑选中…';
+    showProgress(true);
+
+    var url = API + '/api/random?count=24';
+    if (state.dbId > 0) url += '&dbId=' + state.dbId;
+
+    apiFetch(url)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var items = data.Items || [];
+        renderRandomItems(items);
+        state.randomItems = items;
+        saveListState();
+      })
+      .catch(function (err) {
+        grid.innerHTML = '';
+        grid.appendChild(el('div', 'empty', '随机推荐失败：' + err.message));
+      })
+      .then(function () { showProgress(false); });
+  }
+
+  randomBtn.addEventListener('click', function () {
+    // 随机推荐是「开关式」：
+    // 未激活 -> 点一下进入随机并立即出结果
+    // 已激活 -> 再点一下换一批（保持激活状态）
+    // 任何其它操作（切分类/搜索/切视图/筛选）都会退出随机状态
+    showRandom();
+  });
+
+  /* ============================================================
+     筛选面板
+     ============================================================ */
+
+  // 后端字段名 -> 中文标签
+  var FILTER_LABELS = {
+    genres: '分类',
+    studios: '发行商',
+    series: '系列',
+    directors: '导演',
+    actors: '演员',
+  };
+
+  var filtersData = null;
+
+  function openSheet() {
+    sheetMask.classList.add('show');
+    filterSheet.classList.add('show');
+    filterBtn.classList.add('active');
+    lockScroll();
+
+    // 每次打开都回到顶部，避免停留在上次滚动位置
+    sheetBody.scrollTop = 0;
+
+    if (!filtersData) loadFilters();
+    else sheetBody.scrollTop = 0;
+  }
+
+  function closeSheet() {
+    sheetMask.classList.remove('show');
+    filterSheet.classList.remove('show');
+    filterBtn.classList.remove('active');
+    unlockScroll();
+  }
+
+  function loadFilters() {
+    apiFetch(API + '/api/filters')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        filtersData = data;
+        renderFilters();
+      })
+      .catch(function (err) {
+        sheetBody.innerHTML = '';
+        sheetBody.appendChild(el('div', 'empty', '筛选项加载失败：' + err.message));
+      });
+  }
+
+  function renderFilters() {
+    sheetBody.innerHTML = '';
+
+    Object.keys(FILTER_LABELS).forEach(function (key) {
+      var list = filtersData[key];
+      if (!list || !list.length) return;
+
+      var group = el('div', 'filter-group');
+
+      var label = el('div', 'filter-label');
+      label.appendChild(document.createTextNode(FILTER_LABELS[key]));
+      var counter = el('span', 'sel-count');
+      counter.dataset.for = key;
+      label.appendChild(counter);
+      group.appendChild(label);
+
+      var wrap = el('div', 'chip-wrap');
+      // 只展示前 30 项，避免面板过长（后端已按频次排序）
+      list.slice(0, 30).forEach(function (item) {
+        var chip = el('button', 'chip');
+        chip.type = 'button';
+        chip.dataset.field = key;
+        chip.dataset.value = item.Name;
+        chip.appendChild(document.createTextNode(item.Name));
+        var n = el('span', 'chip-n', item.Count);
+        chip.appendChild(n);
+
+        if (isSelected(key, item.Name)) chip.classList.add('on');
+
+        chip.addEventListener('click', function () {
+          toggleFilter(key, item.Name);
+          chip.classList.toggle('on');
+          updateCounter(key);
+        });
+
+        wrap.appendChild(chip);
+      });
+      group.appendChild(wrap);
+      sheetBody.appendChild(group);
+    });
+
+    Object.keys(FILTER_LABELS).forEach(updateCounter);
+
+    // 渲染后归零滚动位置。
+    // 必须放在渲染之后：浏览器会在内容插入时保留/调整滚动位置，
+    // 渲染前设 scrollTop 会被覆盖（实测渲染前设 0，插入内容后变成 1889）。
+    sheetBody.scrollTop = 0;
+    requestAnimationFrame(function () { sheetBody.scrollTop = 0; });
+  }
+
+  function isSelected(field, value) {
+    var arr = state.filters[field];
+    return !!(arr && arr.indexOf(value) >= 0);
+  }
+
+  function toggleFilter(field, value) {
+    if (!state.filters[field]) state.filters[field] = [];
+    var arr = state.filters[field];
+    var i = arr.indexOf(value);
+    if (i >= 0) arr.splice(i, 1);
+    else arr.push(value);
+    if (!arr.length) delete state.filters[field];
+  }
+
+  function updateCounter(field) {
+    var el2 = sheetBody.querySelector('.sel-count[data-for="' + field + '"]');
+    if (!el2) return;
+    var n = (state.filters[field] || []).length;
+    el2.textContent = n > 0 ? n : '';
+  }
+
+  filterBtn.addEventListener('click', openSheet);
+  sheetMask.addEventListener('click', closeSheet);
+
+  sheetReset.addEventListener('click', function () {
+    state.filters = {};
+    sheetBody.querySelectorAll('.chip.on').forEach(function (c) { c.classList.remove('on'); });
+    Object.keys(FILTER_LABELS).forEach(updateCounter);
+    // 重置后立即回列表生效，不需要用户再点「应用」。
+    // 之前只清本地状态不重载，用户会看到「点了重置但列表没变」。
+    // 面板保持打开，方便继续调整。
+    reset(true);
+  });
+
+  sheetApply.addEventListener('click', function () {
+    closeSheet();
+    state.mode = 'list';
+    randomBtn.classList.remove('active');
+    // 筛选是精细条件，退出「收藏/最近播放」视图避免条件叠加导致空结果
+    reset(true);
+  });
+
+  /* ============================================================
+     相似推荐（详情页内）
+     ============================================================ */
+
+  /**
+   * 相似推荐。
+   *
+   * light: 详情页（浅色底）用 true，播放页（深色底）用 false。
+   * 两处底色相反，不能共用一套配色，否则浅底上的白字会看不见。
+   *
+   * 预留高度很重要：这个区块是异步来的，如果容器初高 0，
+   * 数据回来前页面总高不够，用户会觉得「刚进详情页滚不动，
+   * 等一会儿才能滚」。所以先把标题和一行骨架铺上，
+   * 高度与真实结果接近，数据到了原地替换，视觉上不跳。
+   */
+  function loadSimilar(dataId, container, light) {
+    if (light) container.classList.add('similar-light');
+
+    // 骨架：标题 + 12 张占位卡。
+    // 数量要和真实结果一致（接口固定要 12 张），否则数据到达时
+    // 高度会从「1 行」跳到「2 行」，滚动位置和总高都会抖一下。
+    var phHead = el('div', 'section-head');
+    phHead.appendChild(el('div', 'section-title', '相似推荐'));
+    container.appendChild(phHead);
+
+    var phRow = el('div', 'similar-row');
+    for (var i = 0; i < 12; i++) {
+      var ph = el('div', 'similar-card similar-ph');
+      ph.appendChild(el('div', 'similar-ph-img'));
+      phRow.appendChild(ph);
+    }
+    container.appendChild(phRow);
+
+    apiFetch(API + '/api/similar/' + dataId + '?count=12')
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var items = data.Items || [];
+        if (!items.length) {
+          container.remove();
+          return;
+        }
+
+        // 原地替换骨架，不做 append，避免高度翻倍
+        container.innerHTML = '';
+
+        var head = el('div', 'section-head');
+        head.appendChild(el('div', 'section-title', '相似推荐'));
+        container.appendChild(head);
+
+        var row = el('div', 'similar-row');
+        items.forEach(function (item) {
+          var card = el('div', 'similar-card');
+          var img = document.createElement('img');
+          img.loading = 'lazy';
+          img.src = withToken(item.SmallImageUrl || item.BigImageUrl);
+          img.alt = item.VID || '';
+          card.appendChild(img);
+          card.appendChild(el('div', 'similar-vid', item.VID || item.Title || fileNameOf(item.FileName) || ''));
+          card.addEventListener('click', function () {
+            // 从播放页点相似项 = 换片播放；从详情页点 = 换到那部的详情
+            if (playerPage.classList.contains('show')) {
+              switchPlayerVideo(item.DataID);
+            } else {
+              detailBody.scrollTop = 0;
+              openDetail(item.DataID);
+            }
+          });
+          row.appendChild(card);
+        });
+        container.appendChild(row);
+      })
+      .catch(function () { container.remove(); });
+  }
+
+  /* ---------- 启动 ---------- */
+
+  /* ============================================================
+     登录流程
+
+     顺序很重要：先问 /api/auth/status，
+     - 没开口令 → 直接启动，和以前完全一样
+     - 开口令且已登录 → 直接启动
+     - 开口令且未登录 → 显示遮罩，登录成功后再启动
+     ============================================================ */
+
+  var loginMask = document.getElementById('loginMask');
+  var loginInput = document.getElementById('loginInput');
+  var loginBtn = document.getElementById('loginBtn');
+  var loginError = document.getElementById('loginError');
+
+  var booted = false;      // 是否已跑过初始化，避免重复加载
+
+  function showLogin(message) {
+    loginMask.classList.add('show');
+    loginError.textContent = message || '';
+    loginInput.value = '';
+    // 延迟聚焦：iOS 上直接 focus 常常无效
+    setTimeout(function () { try { loginInput.focus(); } catch (e) { } }, 120);
+  }
+
+  function hideLogin() {
+    loginMask.classList.remove('show');
+    loginError.textContent = '';
+  }
+
+  function bootApp() {
+    if (booted) return;
+    booted = true;
+    loadLibraries();
+
+    // 恢复上次的浏览状态（见 saveListState 的说明）：
+    // 随机推荐正在看的时候点进播放页、退出后页面被浏览器重建，
+    // 这里把随机结果和滚动位置摆回去，而不是退回默认列表页。
+    var saved = readListState();
+    if (saved) {
+      if (typeof saved.dbId === 'number') state.dbId = saved.dbId;
+      if (typeof saved.keyword === 'string') {
+        state.keyword = saved.keyword;
+        if (saved.keyword) searchInput.value = saved.keyword;
+      }
+      if (typeof saved.view === 'string') state.view = saved.view;
+
+      if (saved.mode === 'random' && saved.randomItems && saved.randomItems.length) {
+        state.mode = 'random';
+        randomBtn.classList.add('active');
+        renderRandomItems(saved.randomItems);
+        // 等一帧再滚，否则 grid 还没完成布局，scrollTo 会被裁到 0
+        var y = saved.scrollY || 0;
+        requestAnimationFrame(function () { window.scrollTo(0, y); });
+        setupInfiniteScroll();
+        return;
+      }
+    }
+
+    loadPage();
+    setupInfiniteScroll();
+  }
+
+  function doLogin() {
+    var pwd = (loginInput.value || '').trim();
+    if (!pwd) {
+      loginError.textContent = '请输入口令';
+      return;
+    }
+
+    loginBtn.disabled = true;
+    loginError.textContent = '';
+    loginBtn.textContent = '验证中…';
+
+    fetch(API + '/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: pwd })
+    })
+      .then(function (r) {
+        return r.json().then(function (j) {
+          if (!r.ok) throw new Error(j.error || '口令不正确');
+          return j;
+        });
+      })
+      .then(function (j) {
+        if (j.token) setToken(j.token);
+        hideLogin();
+        bootApp();
+      })
+      .catch(function (err) {
+        loginError.textContent = err.message || '登录失败';
+        loginInput.focus();
+        loginInput.select();
+      })
+      .then(function () {
+        loginBtn.disabled = false;
+        loginBtn.textContent = '进入';
+      });
+  }
+
+  loginBtn.addEventListener('click', doLogin);
+  loginInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); doLogin(); }
+  });
+
+  /**
+   * 启动：先确认鉴权状态。
+   */
+  (function start() {
+    fetch(API + '/api/auth/status', {
+      headers: getToken() ? { 'Authorization': 'Bearer ' + getToken() } : {}
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (s) {
+        if (!s.required) {
+          // 未启用口令：完全无感，直接进入
+          hideLogin();
+          bootApp();
+          return;
+        }
+        if (s.authenticated) {
+          hideLogin();
+          bootApp();
+          return;
+        }
+        // 需要口令
+        showLogin('');
+      })
+      .catch(function () {
+        // 状态接口都拿不到（服务刚起来 / 网络抖动），
+        // 按「未启用口令」处理，保证可用性优先
+        hideLogin();
+        bootApp();
+      });
+  })();
+
+  // 返回键：先关最上层（播放页 > 详情页），不要直接退出网站
+  window.addEventListener('popstate', function () {
+    if (playerPage.classList.contains('show')) {
+      // 由返回键触发，历史记录已经回退过了，标记一下避免 closePlayer 再次回退
+      playerClosingByBack = true;
+      closePlayer();
+      return;
+    }
+    if (detailPage.classList.contains('show')) {
+      detailClosingByBack = true;
+      closeDetail();
+    }
+  });
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,11 @@
+# gitleaks 配置
+#
+# 用途：让 `gitleaks dir .` / `gitleaks git .` 在发布前扫描时只报真问题。
+#
+# 已知误报：CustomStyle/Tokens/Primitive.xaml 里的 XAML 颜色键
+# （如 <Color x:Key="Red100">#FF9E6B70</Color>）会被 generic-api-key 规则
+# 当成高熵密钥命中。该文件是纯颜色定义，不含任何凭据。
+
+[allowlist]
+description = "XAML 颜色定义误报"
+paths = ['''Jvedio-WPF/Jvedio/CustomStyle/Tokens/Primitive\.xaml''']

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 使用与排查文档
+    url: https://github.com/muzlin00-sketch/Jvedio-open/blob/main/MOBILE-GUIDE.md
+    about: 手机端打不开、连不上、播放不了，先看这份
+  - name: 安全问题
+    url: https://github.com/muzlin00-sketch/Jvedio-open/blob/main/SECURITY.md
+    about: 漏洞与敏感问题请私下报告，不要开公开 issue
