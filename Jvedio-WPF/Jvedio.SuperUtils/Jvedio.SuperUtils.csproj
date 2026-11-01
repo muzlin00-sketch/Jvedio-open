@@ -28,8 +28,15 @@
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
     <Reference Include="WindowsBase" />
+    <!--
+      必须引用主项目实际分发的那个 Newtonsoft（Reference\Newtonsoft.Json.dll，11.0.0.0）。
+      早先这里指向 NuGet 的 12.0.3，编出来的 SuperUtils.dll 引用 12.0.0.0，
+      而运行时加载的是 11.0.0.0，又没有 bindingRedirect —— 结果任何走
+      SuperUtils.Common.JsonUtils 的调用（例如插件 main.json 解析）都会抛
+      "找到的程序集清单定义与程序集引用不匹配"，启动日志里看起来像插件解析失败。
+    -->
     <Reference Include="Newtonsoft.Json">
-      <HintPath>..\packages\Newtonsoft.Json.12.0.3\lib\net40\Newtonsoft.Json.dll</HintPath>
+      <HintPath>..\Jvedio\Reference\Newtonsoft.Json.dll</HintPath>
     </Reference>
   </ItemGroup>
   <ItemGroup>

@@ -48,6 +48,18 @@
 其余 NuGet 依赖（EntityFramework、MySql.Data、BouncyCastle、ExCSS、Fare、FontAwesome.WPF 等）
 在构建时由 NuGet 还原，不随仓库分发，许可证见各包页面。
 
+## 自带的刮削器插件（`plugins/crawlers/bus/`）
+
+`plugins/crawlers/bus/` 下是 **JavBus 番号插件**（`BusCrawler.dll` 1.4.0，2023-09-29）：
+
+- 来源：[hitchao/Jvedio-Plugin](https://github.com/hitchao/Jvedio-Plugin) 的
+  `plugins/crawlers/bus/`，与作者在「插件中心」分发的版本字节一致，本仓库**原样分发、未做修改**。
+- 用途：番号类资源（如 `SSIS-001`）的刮削，程序启动时从 `plugins/crawlers/` 自动加载。
+- 授权：随上游以 GPL-3.0 分发（该仓库本身未单独附 LICENSE 文件，版权归插件作者）。
+  如果作者另有授权声明，以作者声明为准，届时会移除或替换。
+- 其他插件（fc2 / library / db、主题皮肤）不在本仓库内，请在程序内「插件中心」自行安装，
+  安装来源同样是上述上游仓库。
+
 ## 文档与图片
 
 `Jvedio-WPF/Document/` 与 `项目文档/` 下的设计文档、截图由本项目与上游作者编写，

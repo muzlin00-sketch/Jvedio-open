@@ -48,6 +48,21 @@ Get-ChildItem -LiteralPath $binDir -Recurse -File | ForEach-Object {
 }
 Write-Host "[2/4] 用 $Configuration 产物覆盖了 $copied 个文件"
 
+# 2b. 仓库自带的插件（plugins/ 目录）也一起放进包：现在只含 JavBus 番号插件
+$pluginSrc = Join-Path $repoRoot 'plugins'
+if (Test-Path -LiteralPath $pluginSrc) {
+    $pluginFiles = 0
+    Get-ChildItem -LiteralPath $pluginSrc -Recurse -File | ForEach-Object {
+        $relative = $_.FullName.Substring($repoRoot.Length + 1)
+        $target = Join-Path $stage $relative
+        $parent = Split-Path -Parent $target
+        if (-not (Test-Path -LiteralPath $parent)) { New-Item -ItemType Directory -Path $parent -Force | Out-Null }
+        Copy-Item -LiteralPath $_.FullName -Destination $target -Force
+        $pluginFiles++
+    }
+    Write-Host "[2/4] 打包自带插件：$pluginFiles 个文件"
+}
+
 # 3. 确认包里的 exe 确实是刚构建的那个
 $stagedExe = Join-Path $stage 'Jvedio.exe'
 if ((Get-Item -LiteralPath $stagedExe).Length -ne (Get-Item -LiteralPath $exe).Length) {

@@ -71,10 +71,11 @@ pwsh -NoProfile -File .\build.ps1 -Configuration Release
 1. **内置刮削器（普通影片）**：源码在 `Jvedio-WPF/Jvedio/Core/Crawler/Builtin/`，内置豆瓣 / TMDB / Bangumi，
    按文件名解析标题与年份后自动匹配，无需安装任何插件。TMDB 需要在设置里填自己申请的免费 API Key，
    豆瓣与 Bangumi 免 Key。命中即停止，未命中再回落到插件。
-2. **插件刮削器（番号类）**：程序启动时从 `plugins/crawlers/` 加载 DLL，
+2. **插件刮削器（番号类）**：程序启动时从 `plugins/crawlers/<插件名>/` 加载 DLL，
    插件需实现 `CommonNet.Crawler.ICrawler` / `Jvedio.CommonNet.Crawler.AbstractCrawler`。
-   仓库只包含插件宿主（`Core/Plugins/Crawler/`）与插件契约所需的 `Reference/CommonNet.dll`，
-   **不包含番号类站点刮削器的源码或二进制**，需要自行安装插件。皮肤插件同理。
+   仓库**自带 JavBus 插件**（`plugins/crawlers/bus/`），装好即能刮番号类资源，不需要额外下载。
+   其他插件（fc2 / library / db、主题皮肤）在程序内「插件中心」安装：主界面右上角菜单 → 插件。
+   插件列表来自上游的插件仓库，本项目只做分发，不修改插件本身，来源与授权见 [NOTICE.md](NOTICE.md)。
 
 ## 目录结构
 
@@ -85,6 +86,7 @@ pwsh -NoProfile -File .\build.ps1 -Configuration Release
 | `Jvedio-WPF/Jvedio.SuperUtils/` | 自建 `SuperUtils.dll` 源码（替代闭源二进制） |
 | `Jvedio-WPF/Jvedio.Test/` | 测试工程（大文件样本不入库，见其 README） |
 | `Jvedio-WPF/Document/` | 设计文档、插件示例、上游 Wiki |
+| `plugins/crawlers/bus/` | 自带的 JavBus 番号插件（来自上游插件仓库，原样分发） |
 | `项目文档/` | 项目总览、踩坑约定、设计规范、部署、模块文档 |
 | `build.ps1` | 一键构建脚本 |
 | `MAINTAINING.md` | 构建环境、闭源依赖、历史改动与验证记录 |
