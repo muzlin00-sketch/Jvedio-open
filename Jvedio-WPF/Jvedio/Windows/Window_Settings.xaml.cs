@@ -377,43 +377,19 @@ namespace Jvedio
         /// <summary>
         /// 取本机局域网 IPv4。
         /// <para>
-        /// 用「连一个外部地址」的办法判断默认出口网卡，
-        /// 比遍历网卡更准（能自动排除虚拟网卡、VPN 等）。
-        /// 取不到时退回第一个非回环地址。
+        /// 直接复用 <see cref="Jvedio.Core.Lan.LanServer.GetLocalIpAddress"/>，不要在这里另写一套：
+        /// 服务实际用的是那个地址，设置页显示另一个地址就会出现「页面给的链接手机打不开」。
+        /// 那边挑的是「私有网段 + 掩码小于 /32」的网卡，能排掉 VPN 的点对点地址；
+        /// 而「连 8.8.8.8 看出口网卡」在开着 VPN 时会选中 VPN 网卡，正是要避免的情况。
         /// </para>
         /// </summary>
         private string GetLocalIPv4()
         {
-            try {
-                using (var socket = new System.Net.Sockets.Socket(
-                    System.Net.Sockets.AddressFamily.InterNetwork,
-                    System.Net.Sockets.SocketType.Dgram,
-                    System.Net.Sockets.ProtocolType.Udp)) {
-                    // 不会真的发包，只是让系统选路
-                    socket.Connect("8.8.8.8", 65530);
-                    var endPoint = socket.LocalEndPoint as System.Net.IPEndPoint;
-                    if (endPoint != null && !System.Net.IPAddress.IsLoopback(endPoint.Address))
-                        return endPoint.Address.ToString();
-                }
-            } catch {
-                // 无网络时走兜底
-            }
-
-            try {
-                foreach (var ni in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()) {
-                    if (ni.OperationalStatus != System.Net.NetworkInformation.OperationalStatus.Up)
-                        continue;
-                    foreach (var addr in ni.GetIPProperties().UnicastAddresses) {
-                        if (addr.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
-                            && !System.Net.IPAddress.IsLoopback(addr.Address))
-                            return addr.Address.ToString();
-                    }
-                }
-            } catch {
-                // 忽略
-            }
-
-            return null;
+            string ip = Jvedio.Core.Lan.LanServer.GetLocalIpAddress();
+            // GetLocalIpAddress 取不到时返回 127.0.0.1，此时按「未检测到」处理
+            if (string.IsNullOrEmpty(ip) || ip == "127.0.0.1")
+                return null;
+            return ip;
         }
 
         /// <summary>

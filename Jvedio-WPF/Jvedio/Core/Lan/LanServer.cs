@@ -39,8 +39,20 @@ namespace Jvedio.Core.Lan
 
         public int Port { get; private set; }
 
-        /// <summary>对外访问的基础地址，如 http://192.168.1.5:5200</summary>
-        public string BaseUrl { get; private set; }
+        /// <summary>
+        /// 对外访问的基础地址，如 http://192.168.1.5:5200。
+        /// <para>
+        /// **每次读取现算 IP**，不缓存：笔记本换 Wi-Fi、插拔网线、开关 VPN、休眠唤醒后
+        /// DHCP 换地址，缓存下来的地址就是死的——手机拿着旧地址连不上，设置页还会
+        /// 一本正经地显示一个早就失效的链接。
+        /// </para>
+        /// </summary>
+        public string BaseUrl {
+            get {
+                int port = Port > 0 ? Port : DEFAULT_PORT;
+                return $"http://{GetLocalIpAddress()}:{port}";
+            }
+        }
 
         public string LastError { get; private set; }
 
@@ -142,8 +154,10 @@ namespace Jvedio.Core.Lan
                 _Listener.Start();
 
                 IsRunning = true;
-                BaseUrl = $"http://{GetLocalIpAddress()}:{port}";
                 LastError = null;
+
+                // 只记一条启动日志；BaseUrl 是现算属性，不在这里赋值
+                App.Logger?.Info($"lan server started: {BaseUrl}");
 
                 // 启动时自检网页文件，避免部署漏拷导致「改完页面没变」却毫无线索。
                 // 放在绑定成功之后：自检不影响「能不能启动」，只影响「发的是不是新页面」。
