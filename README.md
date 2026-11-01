@@ -73,9 +73,12 @@ pwsh -NoProfile -File .\build.ps1 -Configuration Release
    豆瓣与 Bangumi 免 Key。命中即停止，未命中再回落到插件。
 2. **插件刮削器（番号类）**：程序启动时从 `plugins/crawlers/<插件名>/` 加载 DLL，
    插件需实现 `CommonNet.Crawler.ICrawler` / `Jvedio.CommonNet.Crawler.AbstractCrawler`。
-   仓库**自带 JavBus 插件**（`plugins/crawlers/bus/`），装好即能刮番号类资源，不需要额外下载。
-   其他插件（fc2 / library / db、主题皮肤）在程序内「插件中心」安装：主界面右上角菜单 → 插件。
-   插件列表来自上游的插件仓库，本项目只做分发，不修改插件本身，来源与授权见 [NOTICE.md](NOTICE.md)。
+   仓库**自带 JavBus 插件**（`plugins/crawlers/bus/`），并在没有配置记录时自动补一条默认源
+   （`https://www.javbus.com/`），装好即能刮番号类资源，不需要额外下载。
+   要改地址或加 Cookie，去「设置 → 刮削器」。
+   上游另外还有 fc2 / library / db 三个番号插件和 5 套主题，在程序内「插件中心」安装：
+   主界面右上角菜单 → 插件。插件列表来自上游的插件仓库，本项目只做分发，不修改插件本身，
+   来源与授权见 [NOTICE.md](NOTICE.md)。
 
 ## 目录结构
 

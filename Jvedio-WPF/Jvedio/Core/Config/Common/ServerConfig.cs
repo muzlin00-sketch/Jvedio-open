@@ -45,8 +45,14 @@ namespace Jvedio.Core.Config
             SelectWrapper<AppConfig> wrapper = new SelectWrapper<AppConfig>();
             wrapper.Eq("ConfigName", ConfigName);
             AppConfig appConfig = MapperManager.appConfigMapper.SelectOne(wrapper);
-            if (appConfig == null || appConfig.ConfigId == 0)
+            if (appConfig == null || appConfig.ConfigId == 0) {
+                // 全新安装：数据库里还没有 Servers 记录。
+                // 仓库自带的 JavBus 插件必须有至少一条「源」记录才会被用上，否则
+                // VideoDownLoader.GetCrawlerServer 直接抛 CrawlerNotFoundException，
+                // 表现就是「插件明明装好了，却提示没有可用的刮削器」。
+                CrawlerServers = DefaultCrawlerServers();
                 return;
+            }
             List<Dictionary<object, object>> dicts = Jvedio.Common.JsonUtils.TryDeserializeObject<List<Dictionary<object, object>>>(appConfig.ConfigValue);
 
             if (dicts == null || CrawlerManager.PluginMetaDatas == null)
@@ -75,6 +81,26 @@ namespace Jvedio.Core.Config
                     server.Available = available;
                 CrawlerServers.Add(server);
             }
+        }
+
+        /// <summary>
+        /// 全新安装时的默认刮削源。
+        /// <para>
+        /// 插件目录名就是 PluginID 的后半段（<c>crawler/bus</c> 对应 <c>plugins/crawlers/bus/</c>），
+        /// 这一条让仓库自带的 JavBus 插件开箱即用；用户在「设置 → 刮削器」里改地址、
+        /// 加 Cookie 后会被 <see cref="Save"/> 覆盖写库，不会重复添加。
+        /// </para>
+        /// </summary>
+        private static List<CrawlerServer> DefaultCrawlerServers()
+        {
+            return new List<CrawlerServer>() {
+                new CrawlerServer {
+                    PluginID = "crawler/bus",
+                    Url = "https://www.javbus.com/",
+                    Enabled = true,
+                    Available = 1,
+                }
+            };
         }
 
         public override void Save()

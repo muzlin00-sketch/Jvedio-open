@@ -41,6 +41,8 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Shim.cs" />
+    <!-- 版本号只能靠程序集特性写死（旧式 csproj 的 <AssemblyVersion> 不生效） -->
+    <Compile Include="Properties\AssemblyInfo.cs" />
   </ItemGroup>
   <!-- 系统自带的 C# 编译器是 5.0，编不了 LangVersion 7.3；改用 NuGet 提供的 Roslyn -->
   <PropertyGroup>

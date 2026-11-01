@@ -17,6 +17,11 @@
 
 ### 修复
 
+- **番号插件装上了却用不了**：全新安装的数据库里没有 `Servers` 配置，`VideoDownLoader.GetCrawlerServer`
+  直接抛 `CrawlerNotFoundException`（提示像"没装插件"）。现在 `ServerConfig.Read()` 在没有记录时
+  补一条 `crawler/bus` 默认源，用户改过之后照旧以数据库为准。
+- **`SuperUtils` 的程序集版本是 `0.0.0.0`**：旧式 csproj 里的 `<AssemblyVersion>` 不生效，版本号改用
+  `Properties/AssemblyInfo.cs` 声明为 `1.2.0.0`，与闭源 `CommonNet.dll` 及全部番号插件的引用一致。
 - 刮削结果里的评分（`float` 属性）以前根本写不进实体，`Video.ParseDictInfo` 现在支持 `float` / `double` / `decimal` / 数字字符串。
 - 设置窗口以前只有点「应用」才保存下载与刮削配置，直接关窗口会丢；现在关窗口也会落盘。
 - 文件名解析修正：`让子弹飞 (2010).mp4` 这类带括号年份的文件，标题不再被截成 `让子弹飞 (`。
