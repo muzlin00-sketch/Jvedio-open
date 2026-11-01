@@ -15,6 +15,17 @@
 在上游基础上做了较多重构与功能补充。改动记录见 [MAINTAINING.md](MAINTAINING.md)，
 对外可见的变化见 [CHANGELOG.md](CHANGELOG.md)。
 
+## 截图
+
+![主界面](docs/images/main-window.png)
+
+<sub>主界面：封面墙，每张卡显示番号、发行日期、评分，左侧按收藏 / 演员 / 类别 / 系列 / 发行商 / 导演筛选。
+（截图中的封面与标题已打码。）</sub>
+
+![设置 - 手机网页版](docs/images/settings-lan.png)
+
+<sub>设置 → 基本：开局域网服务、复制手机访问地址、设访问口令。</sub>
+
 ## 主要特性
 
 - **影片库管理**：扫描目录、按番号自动分类、标签 / 演员 / 系列 / 发行商筛选，支持多个数据库。
@@ -71,13 +82,16 @@ pwsh -NoProfile -File .\build.ps1 -Configuration Release
 | 想知道什么 | 看这里 |
 |---|---|
 | 刮削怎么配、番号插件怎么开、刮不到怎么查 | [项目文档/刮削与插件.md](项目文档/刮削与插件.md) |
+| 刮削的实现：加一个源、改路由、验证 | [项目文档/modules/刮削.md](项目文档/modules/刮削.md) |
 | 启动 / 手机 / 播放 / 备份的常见问题 | [项目文档/常见问题.md](项目文档/常见问题.md) |
 | 项目结构、技术栈、路由对照 | [项目文档/项目总览.md](项目文档/项目总览.md) |
 | 改代码前必看的跨模块陷阱 | [项目文档/踩坑约定.md](项目文档/踩坑约定.md) |
 | 手机网页版 / 播放器 / 投屏 / 访问口令 / 写真库 | [项目文档/modules/](项目文档/modules/) |
 | UI、配色、动效、手势参数 | [项目文档/设计规范.md](项目文档/设计规范.md)、[THEME-GUIDE.md](THEME-GUIDE.md) |
 | 界面改版思路 | [UI-REDESIGN.md](UI-REDESIGN.md) |
-| 构建环境、闭源依赖、历史决策与验证记录 | [MAINTAINING.md](MAINTAINING.md) |
+| 构建环境与目录说明 | [MAINTAINING.md](MAINTAINING.md) |
+| 改过什么、为什么、当时怎么验证的 | [项目文档/维护/历史改动.md](项目文档/维护/历史改动.md) |
+| 闭源二进制还剩哪些、替换到哪一步 | [项目文档/闭源依赖替换.md](项目文档/闭源依赖替换.md) |
 | 打包与部署 | [项目文档/部署.md](项目文档/部署.md) |
 | 插件格式（刮削器 / 皮肤） | [Jvedio-WPF/Document/Document.md](Jvedio-WPF/Document/Document.md) |
 | 手机端怎么用、打不开怎么排查 | [MOBILE-GUIDE.md](MOBILE-GUIDE.md) |
