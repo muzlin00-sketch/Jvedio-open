@@ -4,8 +4,12 @@
 [![license](https://img.shields.io/badge/license-GPL--3.0-blue.svg)](LICENSE)
 [![platform](https://img.shields.io/badge/platform-Windows%2010%2F11-lightgrey.svg)](#构建)
 
-本地视频管理软件（WPF / .NET Framework 4.7.2）：扫描本地视频建立影片库、识别番号、管理标签与演员，
-并内嵌一个自建 HTTP 服务，手机浏览器扫码即可浏览和播放。
+本地影片库管理软件（WPF / .NET Framework 4.7.2），主要面向**番号类收藏**：扫描本地文件、
+按番号归类和刮削、管理标签与演员，再配一个手机网页版，躺床上用手机翻库、点开就播。
+
+说人话：给硬盘里那堆番号片做封面墙 + 信息库，手机扫码就能看，不用再翻文件夹。
+
+普通影片（电影 / 剧集 / 动画）也能用：内置豆瓣 / TMDB / Bangumi 三个刮削源，按文件名自动匹配。
 
 本仓库是 [hitchao/Jvedio](https://github.com/hitchao/Jvedio)（GPL-3.0，上游已归档）的**修改版**，
 在上游基础上做了较多重构与功能补充。改动记录见 [MAINTAINING.md](MAINTAINING.md)，
@@ -20,7 +24,10 @@
 - **相似推荐**：按演员 / 导演 / 剧情 / 文件名多维度打分，短片按系列标记（文件名前缀）匹配。
 - **番号识别**：白名单式后缀剥离（`ABC-123-ch` / `-HD` 等标记会被去掉，`HRV-030A` 这类合法尾字母保留）。
 - **内置刮削器**：普通影片（电影 / 剧集 / 动画）按文件名自动刮削，源码内置豆瓣 / TMDB / Bangumi 三个源，
-  不依赖插件；TMDB 需自填免费 API Key，豆瓣与 Bangumi 免 Key。番号类资源仍走插件。
+  不依赖插件；TMDB 需自填免费 API Key，豆瓣与 Bangumi 免 Key。
+- **番号插件开箱可用**：仓库自带 JavBus / JavDB / JavLibrary / FC2 四个番号插件，
+  JavBus 默认启用、免 Cookie 就能出结果，装好就能刮番号；其余三个预填地址，勾上即可。
+  配置与排查见 [项目文档/刮削与插件.md](项目文档/刮削与插件.md)。
 - **闭源依赖替换**：`SuperUtils` 由源码重建（`Jvedio-WPF/Jvedio.SuperUtils`），
   原先闭源的 USN 文件枚举改用自研实现，详见 [项目文档/闭源依赖替换.md](项目文档/闭源依赖替换.md)。
 
@@ -49,10 +56,22 @@ pwsh -NoProfile -File .\build.ps1 -Configuration Release
 
 运行数据（数据库、封面、日志）在程序目录的 `data\` 下，不进仓库。
 
+## 上手四步
+
+1. **建库**：启动 → 选一个空目录或已有库，进入主界面。
+2. **导入**：把放片的目录加进「扫描」，跑一次扫描；文件名里带 `ABC-123` 这类番号的会被自动认出来。
+3. **刮削**：选中影片右键刮削。普通影片走内置源；番号类走自带插件（JavBus 默认开，免配置）。
+   想换源或补 Cookie：设置 → 刮削器。
+4. **手机看**：设置 → 局域网 开启服务，手机扫二维码，输一次口令即可翻库、搜索、播放、投屏。
+
+卡在哪一步就看 [项目文档/常见问题.md](项目文档/常见问题.md)。
+
 ## 文档导航
 
 | 想知道什么 | 看这里 |
 |---|---|
+| 刮削怎么配、番号插件怎么开、刮不到怎么查 | [项目文档/刮削与插件.md](项目文档/刮削与插件.md) |
+| 启动 / 手机 / 播放 / 备份的常见问题 | [项目文档/常见问题.md](项目文档/常见问题.md) |
 | 项目结构、技术栈、路由对照 | [项目文档/项目总览.md](项目文档/项目总览.md) |
 | 改代码前必看的跨模块陷阱 | [项目文档/踩坑约定.md](项目文档/踩坑约定.md) |
 | 手机网页版 / 播放器 / 投屏 / 访问口令 / 写真库 | [项目文档/modules/](项目文档/modules/) |
@@ -71,14 +90,13 @@ pwsh -NoProfile -File .\build.ps1 -Configuration Release
 1. **内置刮削器（普通影片）**：源码在 `Jvedio-WPF/Jvedio/Core/Crawler/Builtin/`，内置豆瓣 / TMDB / Bangumi，
    按文件名解析标题与年份后自动匹配，无需安装任何插件。TMDB 需要在设置里填自己申请的免费 API Key，
    豆瓣与 Bangumi 免 Key。命中即停止，未命中再回落到插件。
-2. **插件刮削器（番号类）**：程序启动时从 `plugins/crawlers/<插件名>/` 加载 DLL，
+2. **番号插件（番号类）**：程序启动时从 `plugins/crawlers/<插件名>/` 加载 DLL，
    插件需实现 `CommonNet.Crawler.ICrawler` / `Jvedio.CommonNet.Crawler.AbstractCrawler`。
-   仓库**自带 JavBus 插件**（`plugins/crawlers/bus/`），并在没有配置记录时自动补一条默认源
-   （`https://www.javbus.com/`），装好即能刮番号类资源，不需要额外下载。
-   要改地址或加 Cookie，去「设置 → 刮削器」。
-   上游另外还有 fc2 / library / db 三个番号插件和 5 套主题，在程序内「插件中心」安装：
-   主界面右上角菜单 → 插件。插件列表来自上游的插件仓库，本项目只做分发，不修改插件本身，
-   来源与授权见 [NOTICE.md](NOTICE.md)。
+   仓库自带四个：**JavBus**（默认启用，免 Cookie）、**JavDB**、**JavLibrary**、**FC2**，
+   首次启动会在数据库里补好各自的源地址，勾选即用。配置、Cookie、排查见
+   [项目文档/刮削与插件.md](项目文档/刮削与插件.md)。
+   上游还有 5 套主题，在程序内「插件中心」安装：主界面右上角菜单 → 插件。
+   插件来自上游插件仓库，本项目只做分发、不修改插件本身，来源与授权见 [NOTICE.md](NOTICE.md)。
 
 ## 目录结构
 
@@ -89,7 +107,7 @@ pwsh -NoProfile -File .\build.ps1 -Configuration Release
 | `Jvedio-WPF/Jvedio.SuperUtils/` | 自建 `SuperUtils.dll` 源码（替代闭源二进制） |
 | `Jvedio-WPF/Jvedio.Test/` | 测试工程（大文件样本不入库，见其 README） |
 | `Jvedio-WPF/Document/` | 设计文档、插件示例、上游 Wiki |
-| `plugins/crawlers/bus/` | 自带的 JavBus 番号插件（来自上游插件仓库，原样分发） |
+| `plugins/crawlers/` | 自带的四个番号插件（bus / db / library / fc2，来自上游插件仓库，原样分发） |
 | `项目文档/` | 项目总览、踩坑约定、设计规范、部署、模块文档 |
 | `build.ps1` | 一键构建脚本 |
 | `MAINTAINING.md` | 构建环境、闭源依赖、历史改动与验证记录 |

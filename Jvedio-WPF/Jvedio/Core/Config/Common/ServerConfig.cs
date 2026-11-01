@@ -86,9 +86,13 @@ namespace Jvedio.Core.Config
         /// <summary>
         /// 全新安装时的默认刮削源。
         /// <para>
-        /// 插件目录名就是 PluginID 的后半段（<c>crawler/bus</c> 对应 <c>plugins/crawlers/bus/</c>），
-        /// 这一条让仓库自带的 JavBus 插件开箱即用；用户在「设置 → 刮削器」里改地址、
-        /// 加 Cookie 后会被 <see cref="Save"/> 覆盖写库，不会重复添加。
+        /// 插件目录名就是 PluginID 的后半段（<c>crawler/bus</c> 对应 <c>plugins/crawlers/bus/</c>）。
+        /// 仓库自带四个番号插件，这里把它们各填一条源：JavBus 默认启用（免 Cookie 就能出结果），
+        /// 其余三个预填地址但默认关闭——它们的站点常需要 Cookie 或会挡直连，
+        /// 让用户自己在「设置 → 刮削器」里勾选、补 Cookie 更稳妥。
+        /// </para>
+        /// <para>
+        /// 用户在设置里改过之后会被 <see cref="Save"/> 覆盖写库，不会重复添加。
         /// </para>
         /// </summary>
         private static List<CrawlerServer> DefaultCrawlerServers()
@@ -99,6 +103,24 @@ namespace Jvedio.Core.Config
                     Url = "https://www.javbus.com/",
                     Enabled = true,
                     Available = 1,
+                },
+                new CrawlerServer {
+                    PluginID = "crawler/db",
+                    Url = "https://javdb.com/",
+                    Enabled = false,
+                    Available = 0,
+                },
+                new CrawlerServer {
+                    PluginID = "crawler/library",
+                    Url = "https://www.javlibrary.com/cn/",
+                    Enabled = false,
+                    Available = 0,
+                },
+                new CrawlerServer {
+                    PluginID = "crawler/fc2",
+                    Url = "https://fc2ppvdb.com/",
+                    Enabled = false,
+                    Available = 0,
                 }
             };
         }
