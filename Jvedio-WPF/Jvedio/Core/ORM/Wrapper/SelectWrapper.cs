@@ -42,6 +42,12 @@ namespace Jvedio.Core.ORM.Wrapper
         /// <summary>排序字段，只会有一个。</summary>
         public string OrderField { get; set; }
 
+        /// <summary>
+        /// 第二排序键（可选）。主排序键大量同值时（例如导入时间只有二十几个不同值、几百行同值），
+        /// 没有稳定的次序，翻页会出现重复或漏条。通常填主键。
+        /// </summary>
+        public string TieBreakerField { get; set; }
+
         /// <summary>排序是否降序。</summary>
         public bool SortDesc { get; set; }
 
@@ -313,7 +319,10 @@ namespace Jvedio.Core.ORM.Wrapper
             if (string.IsNullOrEmpty(OrderField))
                 return string.Empty;
 
-            return " ORDER BY " + OrderField + (SortDesc ? " DESC" : " ASC");
+            string order = " ORDER BY " + OrderField + (SortDesc ? " DESC" : " ASC");
+            if (!string.IsNullOrEmpty(TieBreakerField))
+                order += ", " + TieBreakerField + (SortDesc ? " DESC" : " ASC");
+            return order;
         }
 
         public string ToLimit()

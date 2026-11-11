@@ -55,14 +55,23 @@ namespace Jvedio.Core.UserControls.ViewModels
             "metadata_video.VID",
             "metadata.Grade",
             "metadata.Size",
-            "metadata.LastScanDate",
-            "metadata.FirstScanDate",
+            "metadata.LastScanDate",     // 导入时间：与表头列绑定一致
+            "metadata.CreateDate",       // 创建时间：与表头列绑定一致（原来是 FirstScanDate，两者不是同一列）
             "metadata.Title",
             "metadata.ViewCount",
             "metadata.ReleaseDate",
             "metadata.Rating",
             "metadata_video.Duration",
         };
+
+        /// <summary>
+        /// 时间类排序项（导入时间 / 创建时间 / 发行日期）。切换到这些字段时默认降序，
+        /// 否则「最新」会排在最后一页，用户以为新导入的片子不见了。
+        /// </summary>
+        public static bool IsTimeSortField(int sortIndex)
+        {
+            return sortIndex == 3 || sortIndex == 4 || sortIndex == 7;
+        }
 
         public static string[] SelectFields =
         {
@@ -673,6 +682,11 @@ namespace Jvedio.Core.UserControls.ViewModels
                 else
                     wrapper.Asc(sortField);
             }
+
+            // 主排序键大量同值（导入时间全库只有二十几个不同值、几百行同值）时次序不稳定，
+            // 翻页会重复或漏条；补 DataID 作为第二排序键
+            if (wrapper is SelectWrapper<Video> selectWrapper && !random)
+                selectWrapper.TieBreakerField = "metadata.DataID";
         }
 
 

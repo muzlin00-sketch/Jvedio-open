@@ -30,14 +30,22 @@ namespace Jvedio.Core.ORM.Mapper
 
             public IdType IdType;
 
-            /// <summary>表里真实存在的属性（不含主键）。</summary>
+            /// <summary>写路径列：本类声明的属性（不含主键、含子表共享外键），用于 INSERT / UPDATE 拼 SQL。</summary>
             public PropertyInfo[] Columns;
 
-            /// <summary>查询时允许取的属性（含主键）。</summary>
+            /// <summary>读路径列：结果集 → 实体映射用的属性（含继承与主键）。</summary>
             public PropertyInfo[] SelectColumns;
         }
 
         private static readonly Dictionary<Type, EntityMeta> metaCache = new Dictionary<Type, EntityMeta>();
+
+        /// <summary>只取本类声明的成员。</summary>
+        private static readonly BindingFlags DeclaredFlags =
+            BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+
+        /// <summary>本类 + 继承链上的成员。</summary>
+        private static readonly BindingFlags InstanceFlags =
+            BindingFlags.Public | BindingFlags.Instance;
 
         /// <summary>解析实体元数据（带缓存）。</summary>
         protected static EntityMeta GetMeta()
@@ -50,45 +58,137 @@ namespace Jvedio.Core.ORM.Mapper
             if (table == null || string.IsNullOrEmpty(table.TableName))
                 throw new TableNameNullException();
 
+            PropertyInfo idProperty = FindIdProperty(type);
             EntityMeta meta = new EntityMeta() {
                 TableName = table.TableName,
-                IdType = IdType.NONE,
+                IdProperty = idProperty,
+                IdType = idProperty == null ? IdType.NONE : idProperty.GetCustomAttribute<TableIdAttribute>().type,
+                Columns = BuildWriteColumns(type, idProperty),
+                SelectColumns = BuildSelectColumns(type),
             };
+            metaCache[type] = meta;
+            return meta;
+        }
+
+        /// <summary>主键：以本类声明为准，本类没声明才退回继承链。</summary>
+        private static PropertyInfo FindIdProperty(Type type)
+        {
+            foreach (PropertyInfo property in type.GetProperties(DeclaredFlags)) {
+                if (property.GetCustomAttribute<TableIdAttribute>() != null)
+                    return property;
+            }
+            foreach (PropertyInfo property in type.GetProperties(InstanceFlags)) {
+                if (property.GetCustomAttribute<TableIdAttribute>() != null)
+                    return property;
+            }
+            return null;
+        }
+
+        /// <summary>
+        /// 写路径列（INSERT / UPDATE）：**只取本类声明的属性** + 子表共享外键。
+        /// <para>
+        /// 表结构由标了 <c>[Table]</c> 的类自己声明的属性定义，继承来的属性属于基类那张表。
+        /// 改造前这里取的是全量属性（含继承），于是 <c>Video : MetaData</c> 拼出的 INSERT 变成
+        /// <c>insert into metadata_video (DBId,Title,Size,...)</c>，而 metadata_video 没有这些列，
+        /// 整条语句报 <c>table metadata_video has no column named DBId</c>（UPDATE 同理，会更新不存在的列）。
+        /// </para>
+        /// <para>
+        /// 反证同一约定：Video / Picture / Game 都用 <c>public new long DataID</c> 重新声明了外键列，
+        /// 说明子表本来就该自己声明自己的列；没重新声明的（Comic）由 <see cref="FindSharedForeignKey"/> 补。
+        /// </para>
+        /// </summary>
+        private static PropertyInfo[] BuildWriteColumns(Type type, PropertyInfo idProperty)
+        {
+            List<PropertyInfo> candidates = new List<PropertyInfo>(type.GetProperties(DeclaredFlags));
+
+            PropertyInfo sharedKey = FindSharedForeignKey(type, candidates);
+            if (sharedKey != null)
+                candidates.Insert(0, sharedKey);
 
             List<PropertyInfo> columns = new List<PropertyInfo>();
-            List<PropertyInfo> selectColumns = new List<PropertyInfo>();
-            foreach (PropertyInfo property in type.GetProperties(BindingFlags.Public | BindingFlags.Instance)) {
+            foreach (PropertyInfo property in candidates) {
                 if (!property.CanRead || !property.CanWrite)
                     continue;
 
-                TableIdAttribute id = property.GetCustomAttribute<TableIdAttribute>();
-                if (id != null) {
-                    meta.IdProperty = property;
-                    meta.IdType = id.type;
-                }
+                // 主键不写进 INSERT / UPDATE，交给自增
+                if (idProperty != null && property.Name == idProperty.Name)
+                    continue;
 
                 TableFieldAttribute field = property.GetCustomAttribute<TableFieldAttribute>();
-                bool exist = field == null || field.exist;
-                bool select = field == null || field.select;
-
-                if (property == meta.IdProperty) {
-                    // 主键始终可查，但写 INSERT 时不一定带
-                    if (select)
-                        selectColumns.Add(property);
+                if (field != null && !field.exist)
                     continue;
-                }
 
-                if (exist) {
-                    columns.Add(property);
-                    if (select)
-                        selectColumns.Add(property);
+                columns.Add(property);
+            }
+            return columns.ToArray();
+        }
+
+        /// <summary>
+        /// 读路径列（结果集 → 实体）：沿用改造前的全量属性（含继承）。
+        /// <para>
+        /// 列表 / 详情页的 SQL 是 <c>metadata join metadata_video</c> 这种显式列查询，
+        /// 结果字典里可能带 <c>metadata.*</c> 字段，映射时要按属性名灌回实体；
+        /// 这里不做收窄，避免列表漏字段。
+        /// </para>
+        /// </summary>
+        private static PropertyInfo[] BuildSelectColumns(Type type)
+        {
+            List<PropertyInfo> selectColumns = new List<PropertyInfo>();
+            foreach (PropertyInfo property in type.GetProperties(InstanceFlags)) {
+                if (!property.CanRead || !property.CanWrite)
+                    continue;
+
+                TableFieldAttribute field = property.GetCustomAttribute<TableFieldAttribute>();
+                if (field != null && (!field.exist || !field.select))
+                    continue;
+
+                selectColumns.Add(property);
+            }
+            return selectColumns.ToArray();
+        }
+
+        /// <summary>
+        /// 找出「子表共享外键」：所有 metadata_* 子表都用 metadata.DataID 指向主表。
+        /// <para>
+        /// Video / Picture / Game 都重新声明了这一列，只有 <c>Comic : Picture</c> 没有；
+        /// 严格「只取本类声明」会让 metadata_comic 的 INSERT 丢掉 DataID，写出孤儿行。
+        /// 规则：取继承链最上层 <c>[Table]</c> 类的主键名，本类没声明同名列时用最近的继承声明。
+        /// </para>
+        /// </summary>
+        private static PropertyInfo FindSharedForeignKey(Type type, List<PropertyInfo> declared)
+        {
+            Type rootTable = null;
+            for (Type baseType = type.BaseType; baseType != null && baseType != typeof(object); baseType = baseType.BaseType) {
+                if (baseType.GetCustomAttribute<TableAttribute>() != null)
+                    rootTable = baseType;
+            }
+            if (rootTable == null)
+                return null;
+
+            PropertyInfo rootId = null;
+            foreach (PropertyInfo property in rootTable.GetProperties(DeclaredFlags)) {
+                if (property.GetCustomAttribute<TableIdAttribute>() != null) {
+                    rootId = property;
+                    break;
                 }
             }
+            if (rootId == null)
+                return null;
 
-            meta.Columns = columns.ToArray();
-            meta.SelectColumns = selectColumns.ToArray();
-            metaCache[type] = meta;
-            return meta;
+            if (declared.Any(p => p.Name == rootId.Name))
+                return null;
+
+            for (Type baseType = type.BaseType; baseType != null && baseType != typeof(object); baseType = baseType.BaseType) {
+                foreach (PropertyInfo property in baseType.GetProperties(DeclaredFlags)) {
+                    if (property.Name == rootId.Name && property.CanRead && property.CanWrite)
+                        return property;
+                }
+
+                // 越过最近一张自有表就不再往上找，避免把更上层表的列也带进来
+                if (baseType.GetCustomAttribute<TableAttribute>() != null)
+                    break;
+            }
+            return null;
         }
 
         /// <summary>实体对应的表名。</summary>
@@ -97,7 +197,16 @@ namespace Jvedio.Core.ORM.Mapper
         /// <summary>主键属性名（实体没有标注时为 null）。</summary>
         protected static string IdFieldName => GetMeta().IdProperty?.Name;
 
-        /// <summary>把对象转成 SQL 里的字面量：bool → 1/0，null → <c>''</c>，其余加单引号并转义。</summary>
+        /// <summary>
+        /// 把对象转成 SQL 里的字面量：bool → 1/0，枚举 → 整数（不加引号），null → <c>''</c>，
+        /// 其余加单引号并转义。
+        /// <para>
+        /// 枚举必须落成整数：库里的 <c>metadata.DataType</c>、<c>metadata_video.VideoType</c>、
+        /// <c>actor_info.Gender</c> 都是 INT，契约本来就是整数。改造前走
+        /// <see cref="SqlStringFormat.Format"/> 的 <c>ToString()</c>，DataType 会被写成文本
+        /// <c>'Video'</c>，列表查询条件 <c>metadata.DataType=0</c> 就查不到这些行。
+        /// </para>
+        /// </summary>
         protected static string Quote(object value)
         {
             if (value == null)
@@ -105,6 +214,9 @@ namespace Jvedio.Core.ORM.Mapper
 
             if (value is bool flag)
                 return flag ? "1" : "0";
+
+            if (value is Enum)
+                return Convert.ToInt64(value).ToString();
 
             return "'" + SqlStringFormat.Format(value) + "'";
         }

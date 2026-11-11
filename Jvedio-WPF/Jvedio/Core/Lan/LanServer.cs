@@ -861,7 +861,8 @@ namespace Jvedio.Core.Lan
                         string castToken = _Auth.IssueCastToken(dataId);
                         mediaUrl += "?cast=" + WebUtility.UrlEncode(castToken);
                     }
-                    string title = !string.IsNullOrEmpty(video.VID) ? video.VID
+                    // 与列表接口口径一致：投屏标题也用归一化后的识别码
+                    string title = !string.IsNullOrEmpty(video.VID) ? Jvedio.Identity.Identify.NormalizeVID(video.VID)
                         : (!string.IsNullOrEmpty(video.Title) ? video.Title
                             : Path.GetFileNameWithoutExtension(video.Path));
 

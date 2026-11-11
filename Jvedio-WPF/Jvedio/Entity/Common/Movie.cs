@@ -418,7 +418,9 @@ namespace Jvedio.Entity
             Video video = Jvedio.Common.JsonUtils.TryDeserializeObject<Video>(serializedParent);
             if (video == null)
                 video = new Video();
-            video.VID = id;
+            // NFO 里的 id 可能带 C/CH/HD 这类标记尾缀，入库前统一归一化，
+            // 否则会和扫描入口（Identify.GetVID 已含归一化）产出两种写法
+            video.VID = Jvedio.Identity.Identify.NormalizeVID(id);
             video.VideoType = (VideoType)vediotype;
             video.Series = tag;
             video.Director = director;

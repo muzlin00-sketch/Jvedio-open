@@ -325,6 +325,10 @@ namespace Jvedio.Core.UserControls
                     item.IsChecked = true;
                     if (i == vieModel.SortType)
                         vieModel.SortDescending = !vieModel.SortDescending;
+                    else if (VieModel_VideoList.IsTimeSortField(i))
+                        // 换到时间类字段时默认降序：最新导入/最新的排第一页，
+                        // 否则沿用上一次的方向，最新片会落到最后一页
+                        vieModel.SortDescending = true;
                     vieModel.SortType = i;
                 } else {
                     item.IsChecked = false;
