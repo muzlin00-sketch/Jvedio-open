@@ -87,6 +87,9 @@ namespace Jvedio.Core.UserControls.ViewModels
             "metadata.ViewDate",
             "metadata.CreateDate",
             "metadata.UpdateDate",
+            // 编辑保存是「整实体写回」，这两列不查出来会被写成 0 / 空串
+            "metadata.PathExist",
+            "metadata.ExtraInfo",
             "metadata_video.SubSection",
             "metadata_video.ImageUrls",
             "metadata.ReleaseDate",

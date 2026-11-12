@@ -56,6 +56,10 @@ namespace Jvedio.Mapper
             "LastScanDate",
             "CreateDate",
             "UpdateDate",
+            // PathExist / ExtraInfo 必须查出来：编辑保存是「整实体写回」，
+            // 少了这两列就会把 PathExist 刷成 0、ExtraInfo 清空
+            "PathExist",
+            "ExtraInfo",
             "(select group_concat(TagID,',') from metadata_to_tagstamp where metadata_to_tagstamp.DataID=metadata.DataID)  as TagIDs ",
 
             "VID",
