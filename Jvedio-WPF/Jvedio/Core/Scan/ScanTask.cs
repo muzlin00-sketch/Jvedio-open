@@ -888,6 +888,11 @@ namespace Jvedio.Core.Scan
             List<Video> videos = toInsert.ToList();
             foreach (Video video in videos) {
                 video.DBId = ConfigManager.Main.CurrentDBId;
+                // 标题兜底：只在为空时写文件名。列表「标题」排序取的是 metadata.Title，
+                // 显示侧（Video.SetTitleAndDate）兜底成文件名——不落库两者就永远不一致。
+                // 已有标题（NFO / 刮削 / 手动编辑）一律不覆盖。
+                if (string.IsNullOrEmpty(video.Title) && !string.IsNullOrEmpty(video.Path))
+                    video.Title = Path.GetFileNameWithoutExtension(video.Path);
                 video.FirstScanDate = Jvedio.Common.DateHelper.Now();
                 video.LastScanDate = Jvedio.Common.DateHelper.Now();
                 video.PathExist = 1;

@@ -809,11 +809,11 @@
                         <DataGridTextColumn
                             Width="180"
                             MinWidth="180"
-                            Binding="{Binding LastScanDate}"
+                            Binding="{Binding FirstScanDate}"
                             ElementStyle="{StaticResource DataGridTextBlockStyle}"
                             Header="{DynamicResource ImportDate}"
                             IsReadOnly="True"
-                            SortMemberPath="LastScanDate" />
+                            SortMemberPath="FirstScanDate" />
 
                         <DataGridTextColumn
                             Width="120"

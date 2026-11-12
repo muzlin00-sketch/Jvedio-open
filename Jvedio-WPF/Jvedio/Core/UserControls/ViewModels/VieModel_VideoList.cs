@@ -50,17 +50,32 @@ namespace Jvedio.Core.UserControls.ViewModels
 
         #region "静态属性"
 
+        /// <summary>
+        /// 发行日期的排序键（SQL 表达式）。
+        /// <para>
+        /// 库里的 <c>ReleaseDate</c> 大量为空，界面显示时由 <c>Video.SetTitleAndDate</c>
+        /// 兜底成导入日期（<c>substr(LastScanDate,1,10)</c>，<see cref="Jvedio.Common.DateHelper.DateFormat"/>
+        /// 是 <c>yyyy-MM-dd</c>），排序键必须用同一个表达式，否则「显示 2026-11-12、排序却整列空值」。
+        /// </para>
+        /// <para>
+        /// 排序键允许传 SQL 表达式，先例见 <c>Filter.xaml.cs</c> 的 <c>substr(metadata.ReleaseDate,1,4)</c>；
+        /// 常量表达式、无用户输入，不构成注入面。
+        /// </para>
+        /// </summary>
+        public const string ReleaseDateSortField =
+            "coalesce(nullif(trim(metadata.ReleaseDate),''), substr(metadata.LastScanDate,1,10))";
+
         public static List<string> SortDict { get; set; } = new List<string>()
 {
             "metadata_video.VID",
             "metadata.Grade",
             "metadata.Size",
-            "metadata.LastScanDate",     // 导入时间：与表头列绑定一致
+            "metadata.FirstScanDate",    // 导入时间：首次导入时间，与表头列绑定一致（LastScanDate 每次重扫都会刷新）
             "metadata.CreateDate",       // 创建时间：与表头列绑定一致（原来是 FirstScanDate，两者不是同一列）
             "metadata.Title",
             "metadata.ViewCount",
-            "metadata.ReleaseDate",
-            "metadata.Rating",
+            ReleaseDateSortField,        // 发行日期：与列表显示兜底等价
+            "metadata.Grade",            // 评分：卡片/详情显示的是 Grade 的星，不是 metadata.Rating
             "metadata_video.Duration",
         };
 
@@ -94,6 +109,11 @@ namespace Jvedio.Core.UserControls.ViewModels
             "metadata_video.ImageUrls",
             "metadata.ReleaseDate",
             "metadata.LastScanDate",
+            // 「导入日期」列与排序键现在都用 FirstScanDate（LastScanDate 每次重扫都刷新，不是"导入"时间）
+            "metadata.FirstScanDate",
+            // 评分列已改排序 Grade（界面显示的就是它）；Rating 目前没有列表列显示它，
+            // 但手机端 DTO、详情窗口与将来的列都会读，缺失时恒为 0 —— 保留供将来使用。
+            "metadata.Rating",
             "metadata_video.Director",
             "metadata_video.Studio",
             "metadata_video.Duration",

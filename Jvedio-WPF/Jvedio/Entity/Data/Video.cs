@@ -477,12 +477,34 @@ namespace Jvedio.Entity
         }
 
 
+        /// <summary>
+        /// 标题是否只是「文件名兜底」：扫描入库时 Title 为空会写入文件名（不含扩展名），
+        /// 这种标题不代表刮削到了真标题，仍然需要下载信息。
+        /// </summary>
+        /// <returns>Title 非空、Path 非空，且 Title 与 Path 的文件名（不含扩展名）相同 → true</returns>
+        public bool TitleFromFileName()
+        {
+            if (string.IsNullOrEmpty(Title) || string.IsNullOrEmpty(Path))
+                return false;
+            string fileName;
+            try {
+                fileName = System.IO.Path.GetFileNameWithoutExtension(Path);
+            } catch (ArgumentException) {
+                // Path 含非法路径字符时不做兜底判断，按「非文件名标题」处理
+                return false;
+            }
+            if (string.IsNullOrEmpty(fileName))
+                return false;
+            return string.Equals(Title, fileName, StringComparison.OrdinalIgnoreCase);
+        }
+
         public bool ToDownload()
         {
             if (ConfigManager.Settings.DownloadWhenTitleNull) {
-                return string.IsNullOrEmpty(Title);
+                return string.IsNullOrEmpty(Title) || TitleFromFileName();
             }
             return string.IsNullOrEmpty(Title) ||
+                TitleFromFileName() ||
                 string.IsNullOrEmpty(WebUrl) ||
                 string.IsNullOrEmpty(ImageUrls);
         }

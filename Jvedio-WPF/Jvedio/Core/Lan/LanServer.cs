@@ -2690,16 +2690,33 @@ namespace Jvedio.Core.Lan
             }
         }
 
+        /// <summary>
+        /// 发行日期的排序表达式，与桌面列表<b>逐字相同</b>
+        /// （<c>VieModel_VideoList.ReleaseDateSortField</c>）。
+        /// <para>
+        /// 库里 <c>ReleaseDate</c> 大量为空，桌面显示时兜底成导入日期，手机端
+        /// <see cref="ToSummary"/> 也做同样兜底；排序若仍按裸 <c>ReleaseDate</c>，
+        /// 空值会整列挤在一起，和用户看到的日期顺序对不上。
+        /// </para>
+        /// </summary>
+        private const string DateOrderField =
+            "coalesce(nullif(trim(metadata.ReleaseDate),''), substr(metadata.LastScanDate,1,10))";
+
         private string BuildOrder(string sort)
         {
             // 白名单排序字段，避免 SQL 注入；每个分支都补 DataID 作第二排序键，
-            // 否则主键大量同值时（标题全空、发行日期全空）翻页会出现重复/漏条
+            // 否则主键大量同值时（标题全空、发行日期全空）翻页会出现重复/漏条。
+            // 这里的片段直接拼进 order by，全部是常量字符串，不接受任何用户输入片段。
             switch ((sort ?? string.Empty).ToLowerInvariant()) {
                 case "date":
-                    return " order by metadata.ReleaseDate desc, metadata.DataID desc";
+                    return " order by " + DateOrderField + " desc, metadata.DataID desc";
                 case "date_asc":
-                    return " order by metadata.ReleaseDate asc, metadata.DataID asc";
+                    return " order by " + DateOrderField + " asc, metadata.DataID asc";
                 case "grade":
+                    return " order by metadata.Grade desc, metadata.DataID desc";
+                // 桌面「评分」菜单排的就是 Grade（界面显示的是星），导演/演员等元数据评分
+                // metadata.Rating 全库为 0，按它排等于没排；留这个别名与桌面同键。
+                case "rating":
                     return " order by metadata.Grade desc, metadata.DataID desc";
                 case "viewcount":
                     return " order by metadata.ViewCount desc, metadata.DataID desc";
@@ -2708,6 +2725,8 @@ namespace Jvedio.Core.Lan
                 case "size_asc":
                     return " order by metadata.Size asc, metadata.DataID asc";
                 case "title":
+                    // 入库时 Title 已回填文件名（ScanHelper.ParseVideo / ScanTask.InsertData），
+                    // 这里按 Title 排即可与显示一致
                     return " order by metadata.Title asc, metadata.DataID asc";
                 case "viewdate":
                     return " order by metadata.ViewDate desc, metadata.DataID desc";
@@ -2756,7 +2775,12 @@ namespace Jvedio.Core.Lan
                 // 库中存量记录可能带尾部字母（修复前扫描入库），此处统一归一化后再输出
                 VID = Jvedio.Identity.Identify.NormalizeVID(v.VID),
                 Title = v.Title,
-                ReleaseDate = v.ReleaseDate,
+                // 与桌面 Video.SetTitleAndDate 同一口径：发行日期为空时显示导入日期
+                // （DateHelper.ToLocalDate 输出 yyyy-MM-dd，即 LastScanDate 前 10 位）。
+                // 桌面有这道兜底、手机端原来没有，同一条记录两端会一个显示日期一个空白。
+                ReleaseDate = string.IsNullOrEmpty(v.ReleaseDate)
+                    ? Jvedio.Common.DateHelper.ToLocalDate(v.LastScanDate)
+                    : v.ReleaseDate,
                 ReleaseYear = v.ReleaseYear,
                 Size = v.Size,
                 Duration = v.Duration,

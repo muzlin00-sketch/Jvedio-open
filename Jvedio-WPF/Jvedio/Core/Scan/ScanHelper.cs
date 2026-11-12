@@ -550,6 +550,10 @@ namespace Jvedio
             Video video = new Video() {
                 Path = path,
                 VID = vID,
+                // 入库即带标题（文件名去扩展名）：列表「标题」排序用 metadata.Title，
+                // 显示侧兜底成文件名，不同步就会出现「看着有标题、按标题排序却全空」。
+                // 有 VID / 无 VID 两条分支都从这里进，覆盖所有新增影片。
+                Title = Path.GetFileNameWithoutExtension(path),
                 Size = fileInfo.Length,
                 VideoType = (VideoType)Jvedio.Identity.Identify.GetVideoType(vID),
                 FirstScanDate = Jvedio.Common.DateHelper.Now(),
