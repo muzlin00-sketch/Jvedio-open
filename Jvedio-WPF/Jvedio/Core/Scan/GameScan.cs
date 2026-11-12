@@ -50,39 +50,48 @@ namespace Jvedio.Core.Scan
 
         public override void DoWork()
         {
+            LogFile($"开始游戏扫描：目录 {ScanPaths.Count} 个");
             Task.Run(() => {
-                TimeWatch.Start();
-                foreach (string path in ScanPaths) {
-                    List<string> list = Jvedio.Common.FileHelper.TryGetAllFiles(path, "*.exe").ToList();
-                    if (list != null && list.Count > 0)
-                        pathDict.Add(path, list);
-                }
-
+                // 与 ScanTask 一致：整个后台体包 try，避免后台异常无人观察
                 try {
-                    CheckStatus();
-                } catch (TaskCanceledException ex) {
-                    Logger.Warning(ex.Message);
-                    return;
+                    try {
+                        TimeWatch.Start();
+                        foreach (string path in ScanPaths) {
+                            LogFile($"枚举目录 {path}");
+                            List<string> list = Jvedio.Common.FileHelper.TryGetAllFiles(path, "*.exe")?.ToList();
+                            if (list != null && list.Count > 0)
+                                // 扫描根目录重复/重叠时 Add 会抛 ArgumentException
+                                pathDict[path] = list;
+                        }
+
+                        CheckStatus();
+
+                        (List<Game> import, List<string> notImport) = parseGame();
+
+                        CheckStatus();
+
+                        if (import == null) {
+                            Success = true;
+                            FinishScan();
+                            return;
+                        }
+
+                        handleImport(import);
+                        handleNotImport(notImport);
+
+                        Success = true;
+                        FinishScan();
+                    } catch (TaskCanceledException ex) {
+                        Logger.Warning(ex.Message);
+                        LogFile("游戏扫描被取消");
+                        SnapshotLogs();
+                        FinalizeWithCancel();
+                    } catch (Exception ex) {
+                        FailScan(ex);
+                    }
+                } catch (Exception ex) {
+                    LogFileError("游戏扫描收尾异常：" + ex.Message + Environment.NewLine + ex.StackTrace);
                 }
-
-                VideoParser scanHelper = new VideoParser();
-
-                (List<Game> import, List<string> notImport) = parseGame();
-
-                try {
-                    CheckStatus();
-                } catch (TaskCanceledException ex) {
-                    Logger.Warning(ex.Message);
-                    return;
-                }
-
-                handleImport(import);
-                handleNotImport(notImport);
-
-                TimeWatch.Stop();
-                ElapsedMilliseconds = TimeWatch.ElapsedMilliseconds;
-                ScanResult.ElapsedMilliseconds = ElapsedMilliseconds;
-                Status = System.Threading.Tasks.TaskStatus.RanToCompletion;
             });
         }
 
@@ -96,7 +105,7 @@ namespace Jvedio.Core.Scan
             // 1.1 不需要导入
             // 存在同路径、同哈希的 exe
             foreach (var item in import.Where(arg => existDatas.Where(t => arg.Path.Equals(t.Path) && arg.Hash.Equals(t.Hash)).Any())) {
-                ScanResult.NotImport.Add(item.Path, new ScanDetailInfo("同路径、同哈希"));
+                AddNotImport(item.Path, "同路径、同哈希");
             }
 
             import.RemoveAll(arg => existDatas.Where(t => arg.Path.Equals(t.Path) && arg.Hash.Equals(t.Hash)).Any());
@@ -111,7 +120,7 @@ namespace Jvedio.Core.Scan
                     game.GID = existData.GID;
                     game.LastScanDate = Jvedio.Common.DateHelper.Now();
                     toUpdate.Add(game);
-                    ScanResult.Update.Add(game.Path, "哈希相同，路径不同");
+                    AddUpdate(game.Path, "哈希相同，路径不同");
                 }
             }
 
@@ -126,7 +135,7 @@ namespace Jvedio.Core.Scan
                     data.GID = existData.GID;
                     data.LastScanDate = Jvedio.Common.DateHelper.Now();
                     toUpdate.Add(data);
-                    ScanResult.Update.Add(data.Path, " 哈希不同，路径相同");
+                    AddUpdate(data.Path, " 哈希不同，路径相同");
                 }
             }
 
@@ -136,54 +145,121 @@ namespace Jvedio.Core.Scan
             List<Game> toInsert = import;
 
             // 1.更新
-            List<MetaData> toUpdateData = toUpdate.Select(arg => arg.toMetaData()).ToList();
-            metaDataMapper.UpdateBatch(toUpdateData, "Title", "Size", "Hash", "Path", "LastScanDate");
+            if (toUpdate.Count > 0) {
+                List<string> updatePaths = toUpdate.Select(arg => arg.Path).ToList();
+                try {
+                    List<MetaData> toUpdateData = toUpdate.Select(arg => arg.toMetaData()).ToList();
+                    if (toUpdateData.Count > 0)
+                        metaDataMapper.UpdateBatch(toUpdateData, "Title", "Size", "Hash", "Path", "LastScanDate");
+                } catch (Exception ex) {
+                    Logger.Error($"更新 {toUpdate.Count} 条记录失败：{ex.Message}");
+                    LogFileError($"更新 {toUpdate.Count} 条记录失败（首个 {updatePaths.FirstOrDefault()}）：{ex.Message}");
+                    MoveUpdateToNotImport(updatePaths, "更新记录失败：" + ex.Message);
+                }
+            }
 
             // 2.导入
+            InsertGames(toInsert);
+        }
+
+        /// <summary>
+        /// 批量导入游戏：先 metadata 拿真实 DataID，再写 metadata_game，全部成功才记账。
+        /// <para>
+        /// 原实现与 ScanTask 是同一套"先记账 + before++ 推算 DataID + 伪事务"的写法，
+        /// 这里同样改为用 <c>InsertBatch</c> 回写的真实 ID，子表失败时补偿删除刚插入的 metadata。
+        /// </para>
+        /// </summary>
+        private void InsertGames(List<Game> toInsert)
+        {
+            if (toInsert == null || toInsert.Count == 0)
+                return;
+
             foreach (Game data in toInsert) {
                 data.DBId = ConfigManager.Main.CurrentDBId;
                 data.FirstScanDate = Jvedio.Common.DateHelper.Now();
                 data.LastScanDate = Jvedio.Common.DateHelper.Now();
-                ScanResult.Import.Add(data.Path);
             }
 
             List<MetaData> toInsertData = toInsert.Select(arg => arg.toMetaData()).ToList();
             if (toInsertData.Count <= 0)
                 return;
-            long.TryParse(metaDataMapper.InsertAndGetID(toInsertData[0]).ToString(), out long before);
-            toInsertData.RemoveAt(0);
+
+            Exception metaError = null;
             try {
-                // 开启事务，这样子其他线程就不能更新
-                metaDataMapper.ExecuteNonQuery("BEGIN TRANSACTION;");
                 metaDataMapper.InsertBatch(toInsertData);
             } catch (Exception ex) {
-                Logger.Error(ex.Message);
-                OnError(new MessageCallBackEventArgs(ex.Message));
-            } finally {
-                metaDataMapper.ExecuteNonQuery("END TRANSACTION;");
+                metaError = ex;
+                Logger.Error($"写入 metadata 失败：{ex.Message}");
+                LogFileError($"写入 metadata 失败（本批 {toInsertData.Count} 条）：{ex.Message}");
             }
 
-            // 处理 DataID
-            foreach (Game data in toInsert) {
-                data.DataID = before;
-                before++;
+            List<Game> ready = new List<Game>();
+            List<Game> metaFailed = new List<Game>();
+            for (int i = 0; i < toInsertData.Count; i++) {
+                long dataId = toInsertData[i].DataID;
+                if (dataId <= 0) {
+                    metaFailed.Add(toInsert[i]);
+                    continue;
+                }
+                toInsert[i].DataID = dataId;
+                ready.Add(toInsert[i]);
             }
 
+            if (metaFailed.Count > 0) {
+                string reason = metaError == null ? "写库失败：没有取到自增 DataID" : "写库失败：" + metaError.Message;
+                foreach (Game data in metaFailed)
+                    AddNotImport(data.Path, reason);
+                if (metaError == null)
+                    LogFileError($"有 {metaFailed.Count} 条 metadata 已写入但没取到自增 DataID，可能留下孤儿行，需要人工核对");
+            }
+
+            if (ready.Count == 0) {
+                // 一条都没进去 = 写库整体失败；不能当成"没有新游戏"静默收场，交给上层报错
+                if (metaError != null)
+                    throw new InvalidOperationException(
+                        $"写入 metadata 全部失败（{metaFailed.Count} 条）：{metaError.Message}", metaError);
+                return;
+            }
+
+            Exception childError = null;
             try {
-                gameMapper.ExecuteNonQuery("BEGIN TRANSACTION;"); // 开启事务，这样子其他线程就不能更新
-                gameMapper.InsertBatch(toInsert);
+                gameMapper.InsertBatch(ready);
             } catch (Exception ex) {
-                Logger.Error(ex.Message);
-                OnError(new MessageCallBackEventArgs(ex.Message));
-            } finally {
-                gameMapper.ExecuteNonQuery("END TRANSACTION;");
+                childError = ex;
+            }
+
+            List<Game> childOk = ready.Where(arg => arg.GID > 0).ToList();
+            List<Game> childFailed = ready.Where(arg => arg.GID <= 0).ToList();
+
+            if (childFailed.Count > 0) {
+                string ids = string.Join(",", childFailed.Select(arg => arg.DataID));
+                if (!metaDataMapper.TryExecuteNonQuery($"delete from metadata where DataID in ({ids})"))
+                    LogFileError($"补偿删除失败，可能残留 {childFailed.Count} 条孤儿 metadata：{ids}");
+                else
+                    LogFile($"已补偿删除 {childFailed.Count} 条刚插入的 metadata");
+
+                string reason = childError == null ? "写入游戏表失败" : "写入游戏表失败：" + childError.Message;
+                foreach (Game data in childFailed)
+                    AddNotImport(data.Path, reason);
+            }
+
+            foreach (Game data in childOk)
+                ScanResult.Import.Add(data.Path);
+
+            if (childError != null) {
+                Logger.Error($"写入 metadata_game 失败：{childError.Message}");
+                LogFileError($"写入 metadata_game 失败，成功 {childOk.Count} 条、失败 {childFailed.Count} 条：{childError.Message}");
+                throw new InvalidOperationException(
+                    $"写入游戏表失败（成功 {childOk.Count} 条，失败 {childFailed.Count} 条已回滚主表）：{childError.Message}", childError);
             }
         }
 
         private void handleNotImport(List<string> notImport)
         {
+            if (notImport == null)
+                return;
             foreach (string path in notImport) {
-                ScanResult.NotImport.Add(path, new ScanDetailInfo("不导入"));
+                AddNotImport(path, "不导入");
             }
         }
     }

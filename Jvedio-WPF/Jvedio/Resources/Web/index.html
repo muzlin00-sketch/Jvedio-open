@@ -4210,6 +4210,9 @@ html {
           Array.prototype.forEach.call(libsEl.children, function (c) { c.classList.remove('active'); });
           chip.classList.add('active');
           state.dbId = parseInt(chip.dataset.db, 10) || 0;
+          // 筛选选项也是按库取的：面板正开着就立刻换成本库的选项；
+          // 没开着则留到下次打开时按 dbId 不匹配重拉（见 openSheet）。
+          if (filterSheet.classList.contains('show')) loadFilters();
           // 切库 = 换了浏览范围，退出「收藏/最近播放」视图
           reset(true);
         });
@@ -4461,6 +4464,9 @@ html {
   };
 
   var filtersData = null;
+  // filtersData 属于哪个库。/api/filters?dbId=N 是按库统计的，
+  // 切库后它和 state.dbId 不相等，据此判断要不要重新拉，而不是永久缓存。
+  var filtersDataDbId = null;
 
   function openSheet() {
     sheetMask.classList.add('show');
@@ -4471,7 +4477,9 @@ html {
     // 每次打开都回到顶部，避免停留在上次滚动位置
     sheetBody.scrollTop = 0;
 
-    if (!filtersData) loadFilters();
+    // 没有数据、或数据来自别的库（切过库）都要重新拉，
+    // 否则面板里显示的还是上一个库的分类/演员。
+    if (!filtersData || filtersDataDbId !== state.dbId) loadFilters();
     else sheetBody.scrollTop = 0;
   }
 
@@ -4483,13 +4491,22 @@ html {
   }
 
   function loadFilters() {
-    apiFetch(API + '/api/filters')
+    // 带上当前库：后端只返回该库的分类/发行商/系列/导演/演员，与列表口径一致；
+    // dbId<=0（全部库）时不传参，行为与改动前一致。
+    var reqDbId = state.dbId;
+    apiFetch(API + '/api/filters' + (reqDbId > 0 ? '?dbId=' + reqDbId : ''))
       .then(function (r) { return r.json(); })
       .then(function (data) {
+        // 请求期间又切了库：这份数据已经过期，丢弃且不记 filtersDataDbId，
+        // 下次打开面板时发现库不匹配会自动重拉。
+        if (reqDbId !== state.dbId) return;
         filtersData = data;
+        filtersDataDbId = reqDbId;
         renderFilters();
       })
       .catch(function (err) {
+        // 同上：已切库的报错不要盖掉当前库的面板
+        if (reqDbId !== state.dbId) return;
         sheetBody.innerHTML = '';
         sheetBody.appendChild(el('div', 'empty', '筛选项加载失败：' + err.message));
       });

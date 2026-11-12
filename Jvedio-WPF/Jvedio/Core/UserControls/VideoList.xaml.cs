@@ -418,6 +418,18 @@ namespace Jvedio.Core.UserControls
         {
             if (originSource == null || to_delete == null || to_delete.Count == 0 || originSource.Count == 0)
                 return;
+
+            // 先写库、后删界面：反过来的话（旧实现）写库失败被 SafeAsync.Fire 吞掉，
+            // 界面已经没了、库里还在，用户只能靠重启才看得出来。
+            // 失败时保留选中，让用户可以直接重试。
+            try {
+                videoMapper.deleteVideoByIds(to_delete.Select(arg => arg.DataID.ToString()).ToList());
+            } catch (Exception ex) {
+                Logger.Error($"删除影片失败：{ex}");
+                MessageCard.Error($"删除影片失败：{ex.Message}");
+                return;
+            }
+
             if (!fromDetailWindow) {
                 originSource.RemoveMany(to_delete);
                 vieModel.VideoList.RemoveMany(to_delete);
@@ -437,8 +449,6 @@ namespace Jvedio.Core.UserControls
                     vieModel.VideoList.RemoveAt(idx);
                 }
             }
-
-            videoMapper.deleteVideoByIds(to_delete.Select(arg => arg.DataID.ToString()).ToList());
 
             // 关闭详情窗口
             if (!fromDetailWindow && GetWindowByName("Window_Details", App.Current.Windows) is Window window) {
@@ -626,8 +636,17 @@ namespace Jvedio.Core.UserControls
             // 更新
             if (dict.Count > 0) {
 
-                UpdateVideo(dict, ref videos);
-                MessageNotify.Success($"{SuperControls.Style.LangManager.GetValueByKey("Message_SuccessNum")} {successCount}/{totalCount} ");
+                bool saved = true;
+                try {
+                    UpdateVideo(dict, ref videos);
+                } catch (Exception ex) {
+                    // 文件已经改名成功、写库失败：必须让用户知道，不能让异常冒到全局处理器
+                    saved = false;
+                    Logger.Error($"重命名后更新数据库失败：{ex}");
+                    MessageCard.Error($"文件已重命名，但更新数据库失败：{ex.Message}");
+                }
+                if (saved)
+                    MessageNotify.Success($"{SuperControls.Style.LangManager.GetValueByKey("Message_SuccessNum")} {successCount}/{totalCount} ");
             } else {
                 MessageNotify.Info(LangManager.GetValueByKey("NoFileToRename"));
             }
@@ -740,7 +759,8 @@ namespace Jvedio.Core.UserControls
                         videos[i].Path = list[0];
                         videos[i].SubSection = subSection;
                         metaDataMapper.UpdateFieldById("Path", list[0], dataID);
-                        videoMapper.UpdateFieldById("SubSection", subSection, dataID);
+                        // Video 的主键是 MVID，不是 DataID：按主键更新会改到别的影片上
+                        videoMapper.UpdateFieldByDataID("SubSection", subSection, dataID);
                     } else {
                         string path = dict[dataID][0];
                         videos[i].Path = path;
@@ -762,7 +782,12 @@ namespace Jvedio.Core.UserControls
             // 大图
             list.Add($"({dataID},{pathType},1,{(bigImageExists ? 1 : 0)})");
             string insertSql = $"begin;insert or replace into common_picture_exist(DataID,PathType,ImageType,Exist) values {string.Join(",", list)};commit;";
-            MapperManager.videoMapper.ExecuteNonQuery(insertSql);
+            // 缩略图/海报索引是「按磁盘现状重建」的缓存，写失败不该打断看图，更不该把异常冒到 UI 线程
+            if (!MapperManager.videoMapper.TryExecuteNonQuery(insertSql)) {
+                // 语句以 begin; 开头，失败时事务可能还开着（Try 只写日志不抛），
+                // 不回滚的话之后所有写都会落进同一个悬挂事务，下一次 begin 直接报错
+                MapperManager.videoMapper.TryExecuteNonQuery("rollback;");
+            }
         }
 
         public void ReMoveZero(object sender, RoutedEventArgs e)
@@ -791,7 +816,18 @@ namespace Jvedio.Core.UserControls
                     string newVID = eng + num.Remove(0, 2);
                     video.VID = newVID;
                     Logger.Info($"update vid from {oldVID} to {newVID}");
-                    if (videoMapper.UpdateFieldById("VID", newVID, video.DataID)) {
+                    bool updated;
+                    try {
+                        // Video 的主键是 MVID，不是 DataID：按主键更新会改到别的影片上
+                        updated = videoMapper.UpdateFieldByDataID("VID", newVID, video.DataID);
+                    } catch (Exception ex) {
+                        // 用户点出来的写：失败要明确告知，不能让异常冒到全局处理器
+                        video.VID = oldVID;
+                        Logger.Error($"更新识别码失败（DataID={video.DataID}）：{ex}");
+                        MessageCard.Error($"更新识别码失败：{ex.Message}");
+                        break;
+                    }
+                    if (updated) {
                         successNum++;
                         vieModel.RefreshData(video.DataID);
                     }
@@ -1379,7 +1415,8 @@ namespace Jvedio.Core.UserControls
                 }
 
                 string sql = "begin;" + builder.ToString() + "commit;";
-                tagStampMapper.ExecuteNonQuery(sql);
+                if (!ExecuteTagStampSql(sql))
+                    return;
             } else {
                 List<string> values = new List<string>();
                 foreach (var item in vieModel.SelectedVideo) {
@@ -1389,7 +1426,8 @@ namespace Jvedio.Core.UserControls
                 if (values.Count <= 0)
                     return;
                 string sql = $"insert or replace into metadata_to_tagstamp (DataID,TagID)  values {string.Join(",", values)}";
-                tagStampMapper.ExecuteNonQuery(sql);
+                if (!ExecuteTagStampSql(sql))
+                    return;
             }
 
             onInitTagStamps?.Invoke();
@@ -1418,6 +1456,27 @@ namespace Jvedio.Core.UserControls
                 vieModel.SelectedVideo.Clear();
         }
 
+        /// <summary>
+        /// 打标签 / 取消标签是用户操作直接触发的写。
+        /// <para>
+        /// 写失败必须在这一层接住并告诉用户：异常冒到 App 的全局处理器后，
+        /// 那边是否 <c>Handled = true</c> 无法确认（闭源库），没置就会直接结束进程。
+        /// </para>
+        /// </summary>
+        private bool ExecuteTagStampSql(string sql)
+        {
+            try {
+                tagStampMapper.ExecuteNonQuery(sql);
+                return true;
+            } catch (Exception ex) {
+                Logger.Error($"更新影片标签失败：{ex}");
+                // 事务型语句（begin; ... commit;）中途失败会把连接留在未关闭的事务里，
+                // 之后所有写都会落进同一个事务，下一次 begin 直接报错——先回滚
+                tagStampMapper.TryExecuteNonQuery("rollback;");
+                MessageCard.Error($"更新影片标签失败：{ex.Message}");
+                return false;
+            }
+        }
 
 
         public void RefreshTagStamps(long tagID)
@@ -1611,7 +1670,8 @@ namespace Jvedio.Core.UserControls
             }
             long dataId = video.DataID;
             string sql = $"delete from metadata_to_tagstamp where TagID='{TagStamp.TAG_ID_NEW_ADD}' and DataID='{dataId}'";
-            tagStampMapper.ExecuteNonQuery(sql);
+            // 只是去「新加入」标记，失败不影响播放
+            tagStampMapper.TryExecuteNonQuery(sql);
             onInitTagStamps?.Invoke();
             vieModel.RefreshData(dataId);
             Video.PlayVideoWithPlayer(video.Path, dataId);
@@ -1659,8 +1719,19 @@ namespace Jvedio.Core.UserControls
                 e.Wrapper is SelectWrapper<Video> wrapper) {
                 vieModel.FilterWrapper = wrapper;
                 vieModel.FilterSQL = e.SQL;
+                ResetPageIndex();
                 vieModel.LoadData();
             }
+        }
+
+        /// <summary>
+        /// 筛选/搜索后回到第 1 页：否则停留在第 N 页时结果集变小会直接空页
+        /// </summary>
+        private void ResetPageIndex()
+        {
+            vieModel.CurrentPage = 1;
+            if (pagination != null && pagination.CurrentPage != 1)
+                pagination.CurrentPage = 1;
         }
 
 
@@ -1688,6 +1759,7 @@ namespace Jvedio.Core.UserControls
             if (idx < 0)
                 idx = 0;
             //SearchMode mode = (SearchMode)vieModel.TabSelectedIndex;
+            ResetPageIndex();
             vieModel.Query((SearchField)idx);
             //SaveSearchHistory(mode, (SearchField)idx);
         }

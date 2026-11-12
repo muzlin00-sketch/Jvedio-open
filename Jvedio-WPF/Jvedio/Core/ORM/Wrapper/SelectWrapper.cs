@@ -16,7 +16,8 @@ namespace Jvedio.Core.ORM.Wrapper
     /// 输出格式是历史包袱，逐字符被外面拼进 SQL，不能"顺手美化"：
     /// <list type="bullet">
     /// <item><c>ToWhere(false)</c> → <c>" where  a = '1' and b = '2' "</c>（where 后两个空格）；</item>
-    /// <item>取值一律单引号包裹且<b>不</b>转义（数字也是 <c>'42'</c>，null 变成 <c>''</c>）；</item>
+    /// <item>取值一律单引号包裹且<b>不</b>转义（数字也是 <c>'42'</c>，null 变成 <c>''</c>）；
+    ///       例外：<c>bool</c> 输出 <c>1/0</c>、枚举输出整数字面量，见私有 <c>Quote</c>；</item>
     /// <item><c>Like</c> 自动补 <c>%</c>；<c>NotIn</c> 是 <c>" NOT  in "</c>（双空格）；</item>
     /// <item>排序只支持<b>一个</b>字段，后一次 <c>Asc</c>/<c>Desc</c> 覆盖前一次；</item>
     /// <item><c>Limit(row_count)</c> 这个重载在原件里直接抛 <see cref="NotImplementedException"/>，
@@ -337,8 +338,29 @@ namespace Jvedio.Core.ORM.Wrapper
 
         #region 条件文本
 
+        /// <summary>
+        /// 把条件值转成 SQL 字面量。
+        /// <para>
+        /// 与 <see cref="Jvedio.Core.ORM.Mapper.AbstractMapper{T}"/> 的 Quote 同一口径：
+        /// <c>bool → 1/0</c>、<c>枚举 → 整数</c>（不加引号）、其余加单引号。
+        /// 枚举必须走整数：库里 <c>metadata.DataType</c> / <c>metadata_video.VideoType</c> /
+        /// <c>actor_info.Gender</c> 都是 INT，走 <c>ToString()</c> 会拼成 <c>'Video'</c>，
+        /// 等值条件永远查不到行（这类「查询忽然全空」极难排查）。
+        /// </para>
+        /// <para>
+        /// 字符串仍然<b>不</b>做单引号转义：这是本类历史输出格式，外面按字符拼接，
+        /// 改动会影响既有 SQL 文本（详见类注释）。值里带单引号时仍会拼出语法错误，
+        /// 属于已知遗留风险，不在本次改动范围内。
+        /// </para>
+        /// </summary>
         private static string Quote(object value)
         {
+            if (value is bool flag)
+                return flag ? "1" : "0";
+
+            if (value is Enum)
+                return Convert.ToInt64(value).ToString();
+
             return "'" + (value == null ? string.Empty : value.ToString()) + "'";
         }
 

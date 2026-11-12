@@ -282,9 +282,19 @@ nameof(ImageMode), typeof(int), typeof(ViewVideo), new PropertyMetadata(1));
                 return;
             TagStamp tagStamp = tagStamps.FirstOrDefault(arg => arg.TagID.Equals(tagID));
             if (tagStamp != null) {
+                int index = tagStamps.IndexOf(tagStamp);
                 tagStamps.Remove(tagStamp);
                 string sql = $"delete from metadata_to_tagstamp where TagID='{tagID}' and DataID='{dataID}'";
-                MapperManager.tagStampMapper.ExecuteNonQuery(sql);
+                try {
+                    MapperManager.tagStampMapper.ExecuteNonQuery(sql);
+                } catch (Exception ex) {
+                    // 写失败就把界面改回去，否则「看着删掉了、刷新后又回来」
+                    if (index >= 0 && index <= tagStamps.Count)
+                        tagStamps.Insert(index, tagStamp);
+                    App.Logger?.Error($"删除标签失败（DataID={dataID} TagID={tagID}）：{ex}");
+                    MessageCard.Error($"删除标签失败：{ex.Message}");
+                    return;
+                }
                 Video newVideo = MapperManager.videoMapper.SelectVideoByID(dataID);
                 video.TagIDs = video.TagIDs;
                 // 通知上层数目变化了

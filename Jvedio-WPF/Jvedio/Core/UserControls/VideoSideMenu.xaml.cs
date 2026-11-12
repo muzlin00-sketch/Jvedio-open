@@ -188,8 +188,13 @@ namespace Jvedio.Core.UserControls
         private static Dictionary<string, long> GetGenreDict(string SearchText)
         {
             Dictionary<string, long> genreDict = new Dictionary<string, long>();
-            string sql = $"SELECT Genre from metadata " +
-                $"where metadata.DBId={ConfigManager.Main.CurrentDBId} and metadata.DataType={0} AND Genre !=''";
+            // 与「全部影片 / 收藏 / 最近播放」同源：只有 metadata 里有片子、
+            // 且 metadata_video 里也有对应行的影片才会出现在列表里。
+            // 只数 metadata 时，孤儿记录（metadata 有、metadata_video 没有）会被算进类别数，
+            // 于是侧边栏「剧情(120)」点进去只有 118 条。
+            string sql = $"SELECT metadata.Genre as Genre from metadata_video " +
+                "join metadata on metadata.DataID=metadata_video.DataID " +
+                $"where metadata.DBId={ConfigManager.Main.CurrentDBId} and metadata.DataType={0} AND metadata.Genre !=''";
 
             List<Dictionary<string, object>> lists = metaDataMapper.Select(sql);
             if (lists != null) {
@@ -270,10 +275,18 @@ namespace Jvedio.Core.UserControls
         public void Statistic(string searchText)
         {
             long dbid = ConfigManager.Main.CurrentDBId;
-            AllVideoCount = metaDataMapper.SelectCount(new SelectWrapper<MetaData>().Eq("DBId", dbid).Eq("DataType", 0));
+            // 与影片列表同源（metadata_video JOIN metadata）：只数 metadata 时，
+            // 存在孤儿 metadata_video 就会和列表条数对不上
+            string all_video_count_sql = "SELECT count(DISTINCT metadata.DataID) from metadata_video " +
+                "join metadata on metadata.DataID=metadata_video.DataID " +
+                $"where metadata.DBId={dbid} and metadata.DataType={0}";
+            AllVideoCount = metaDataMapper.SelectCount(all_video_count_sql);
             appDatabaseMapper.UpdateFieldById("Count", AllVideoCount.ToString(), dbid);
 
-            FavoriteVideoCount = metaDataMapper.SelectCount(new SelectWrapper<MetaData>().Eq("DBId", dbid).Eq("DataType", 0).Gt("Grade", 0));
+            FavoriteVideoCount = metaDataMapper.SelectCount(
+                "SELECT count(DISTINCT metadata.DataID) from metadata_video " +
+                "join metadata on metadata.DataID=metadata_video.DataID " +
+                $"where metadata.DBId={dbid} and metadata.DataType={0} and metadata.Grade > 0");
 
             string actor_count_sql = "SELECT count(*) as Count " +
                      "from (SELECT actor_info.ActorID FROM actor_info join metadata_to_actor " +
@@ -297,7 +310,13 @@ namespace Jvedio.Core.UserControls
             AllLabelCount = metaDataMapper.SelectCount(label_count_sql);
             DateTime date1 = DateTime.Now.AddDays(-1 * Jvedio.ViewModel.VieModel_Main.RECENT_DAY);
             DateTime date2 = DateTime.Now;
-            RecentWatchCount = metaDataMapper.SelectCount(new SelectWrapper<MetaData>().Eq("DBId", dbid).Eq("DataType", 0).Between("ViewDate", Jvedio.Common.DateHelper.ToLocalDate(date1), Jvedio.Common.DateHelper.ToLocalDate(date2)));
+            // 与「全部影片」和桌面端「最近播放」列表同源同口径（metadata_video JOIN metadata + Between）
+            string recent_count_sql = "SELECT count(DISTINCT metadata.DataID) from metadata_video " +
+                "join metadata on metadata.DataID=metadata_video.DataID " +
+                $"where metadata.DBId={dbid} and metadata.DataType={0} " +
+                $"and metadata.ViewDate between '{Jvedio.Common.DateHelper.ToLocalDate(date1)}' " +
+                $"and '{Jvedio.Common.DateHelper.ToLocalDate(date2)}'";
+            RecentWatchCount = metaDataMapper.SelectCount(recent_count_sql);
 
             // 类别
             AllGenreCount = GetGenreDict(searchText).Count;

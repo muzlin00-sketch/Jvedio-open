@@ -315,6 +315,17 @@ namespace Jvedio.Core.ORM.Mapper
 
         public abstract bool IsTableExists(string tableName);
 
+        /// <summary>
+        /// 执行一条写语句，返回受影响行数。
+        /// <para>
+        /// <b>契约：失败必须抛异常。</b>不允许 catch 之后返回 <c>-1</c> / <c>0</c> 之类
+        /// 「看起来像受影响行数」的值——调用方无从区分「SQL 跑成功了但没命中行」和
+        /// 「SQL 直接失败」，界面就会把失败报成成功（2026-11-11「已导入 11 条但一条没进库」）。
+        /// </para>
+        /// <para>
+        /// 确实允许失败的调用点用 <see cref="TryExecuteNonQuery(string)"/>，让它显式返回 bool。
+        /// </para>
+        /// </summary>
         public abstract int ExecuteNonQuery(string sql);
 
         public abstract bool DeleteDataBase(string db_name);
@@ -347,20 +358,38 @@ namespace Jvedio.Core.ORM.Mapper
             return id != null;
         }
 
-        /// <summary>批量插入，逐条执行并回写每条的 id。</summary>
+        /// <summary>
+        /// 批量插入，逐条执行并回写每条的 id。
+        /// <para>
+        /// 回写 id 必须和插入在同一次独占里完成（见 <see cref="InsertAndWriteBackId"/>），
+        /// 否则共享连接上 <c>last_insert_rowid()</c> 会被别的线程插队改掉，id 写到错误的实体上。
+        /// </para>
+        /// </summary>
         public int InsertBatch(ICollection<T> collections, InsertMode mode = InsertMode.Replace)
         {
             if (collections == null || collections.Count == 0)
                 return 0;
 
             int total = 0;
-            foreach (T entity in collections) {
-                int rows = Insert(entity, mode);
-                total += rows;
-                if (rows > 0)
-                    WriteBackId(entity, SelectLastInsertRowId());
-            }
+            foreach (T entity in collections)
+                total += InsertAndWriteBackId(entity, mode);
             return total;
+        }
+
+        /// <summary>
+        /// 插入一条，并把新主键写回实体，返回受影响行数。
+        /// <para>
+        /// 默认实现是两步（先 INSERT，再 <see cref="SelectLastInsertRowId"/>），在共享连接上
+        /// <b>不是原子的</b>：中间若另一线程往同一连接插了别的行，读到的 rowid 是别人的。
+        /// <see cref="BaseMapper{T}"/> 覆盖本方法，把「插入 + 读 rowid」放进同一个写锁内。
+        /// </para>
+        /// </summary>
+        protected virtual int InsertAndWriteBackId(T entity, InsertMode mode)
+        {
+            int rows = Insert(entity, mode);
+            if (rows > 0)
+                WriteBackId(entity, SelectLastInsertRowId());
+            return rows;
         }
 
         /// <summary>把字符串形式的 id 写回实体主键属性。</summary>
@@ -477,6 +506,34 @@ namespace Jvedio.Core.ORM.Mapper
         #endregion
 
         #region 工具
+
+        /// <summary>
+        /// 执行写语句，失败时记录日志并返回 false（不抛异常）。
+        /// <para>
+        /// <b>只给「允许失败」的调用点用</b>，判断标准有两条，缺一不可：
+        /// <list type="number">
+        /// <item>语句本身可以失败而业务仍然正确，例如幂等 DDL（建表 / 补列）、
+        /// 事务边界语句（<c>BEGIN</c>/<c>END TRANSACTION</c>）、统计与清理类写入；</item>
+        /// <item>失败后调用方<b>仍能如实告诉用户结果</b>，且不会留下需要回滚的业务状态。</item>
+        /// </list>
+        /// </para>
+        /// <para>
+        /// 业务写路径（导入、编辑保存、删除）一律用 <see cref="ExecuteNonQuery"/> 让异常冒泡。
+        /// 更不允许写成 <c>try { ... } catch { }</c> 这种既不抛、也不返回状态的形态。
+        /// </para>
+        /// </summary>
+        /// <returns>执行成功返回 true；失败返回 false（已写日志）。</returns>
+        public bool TryExecuteNonQuery(string sql)
+        {
+            try {
+                ExecuteNonQuery(sql);
+                return true;
+            } catch (Exception ex) {
+                // Logger 在 App 早期可能还是 null，用 ?. 避免「记录日志本身把异常换掉」
+                Jvedio.App.Logger?.Error(ex);
+                return false;
+            }
+        }
 
         /// <summary>把字典结果集映射成实体列表。</summary>
         public List<V> ToEntity<V>(List<Dictionary<string, object>> list, PropertyInfo[] Properties, bool existField = true)

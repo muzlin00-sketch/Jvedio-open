@@ -137,6 +137,89 @@ namespace Jvedio.Mapper
             }
         }
 
+        /// <summary>
+        /// 按 <c>DataID</c> 更新 <c>metadata_video</c> 的单个字段。
+        /// <para>
+        /// <b>不能用 <c>UpdateFieldById</c></b>：<see cref="Video"/> 的 <c>[TableId]</c> 是 <c>MVID</c>，
+        /// 而调用方手上只有 <c>DataID</c>。两表的自增序列已经不同步
+        /// （<c>sqlite_sequence</c>: metadata=4533 / metadata_video=4522），
+        /// 一旦导入过就会 <c>MVID != DataID</c>，按主键更新会改到<b>别的影片</b>上。
+        /// </para>
+        /// </summary>
+        public bool UpdateFieldByDataID(string field, object value, long dataID)
+        {
+            if (string.IsNullOrEmpty(field) || dataID <= 0)
+                return false;
+
+            SelectWrapper<Video> wrapper = new SelectWrapper<Video>();
+            wrapper.Eq("DataID", dataID);
+            return UpdateField(field, value == null ? string.Empty : value.ToString(), wrapper) > 0;
+        }
+
+        /// <summary>
+        /// 多值字段（当前只有 <c>Genre</c>）按「分隔符 token」精确匹配，把条件写进 wrapper。
+        /// <para>
+        /// 字段值形如 <c>A\u0007B</c>（首尾没有分隔符）。<c>like '%A%'</c> 是子串匹配，
+        /// 「高」会命中「高畫質」（全库 17 条 → 1176 条）。正确做法是先把字段两侧补上分隔符
+        /// （<c>'\u0007' || Genre || '\u0007'</c>），再匹配 <c>'\u0007A\u0007'</c>：
+        /// wrapper 的 <c>Like</c> 会自动在两侧再加 <c>%</c>，只有补上分隔符才不会退化。
+        /// </para>
+        /// <para>
+        /// <c>||</c> 是 SQLite 的字符串拼接。本程序只会连 SQLite
+        /// （<c>Window_Main</c> 里 <c>CurrentDataBaseType</c> 固定写死 SQLite），
+        /// 所以不必为 MySQL 的 <c>||</c>=OR 语义做兼容。
+        /// </para>
+        /// <para>
+        /// <b>桌面端（点侧边栏类别）与手机端（<c>/api/videos?genres=</c>）必须共用本方法</b>：
+        /// 以前两端各写一套（桌面 token、手机子串），同一个类别点出来的条数不一样。
+        /// </para>
+        /// </summary>
+        public static void ApplyTokenFilter<T>(IWrapper<T> wrapper, string field, IEnumerable<string> values)
+        {
+            if (wrapper == null || string.IsNullOrEmpty(field) || values == null)
+                return;
+
+            List<string> tokens = values
+                .Where(arg => !string.IsNullOrWhiteSpace(arg))
+                // SelectWrapper 的取值不做单引号转义，值里带 ' 时在这里双写
+                .Select(arg => arg.Trim().Replace("'", "''"))
+                .Distinct()
+                .ToList();
+            if (tokens.Count == 0)
+                return;
+
+            char sep = Jvedio.Common.ConstValues.Separator;
+            string paddedField = "'" + sep + "' || " + field + " || '" + sep + "'";
+
+            bool first = true;
+            foreach (string token in tokens) {
+                if (!first)
+                    wrapper.Or();
+                wrapper.Like(paddedField, sep + token + sep);
+                if (first)
+                    wrapper.LeftBracket();      // 括号带在本组第一个条件上
+                first = false;
+            }
+            wrapper.RightBracket();             // 括号带在本组最后一个条件上
+        }
+
+        /// <summary>
+        /// 取 <see cref="ApplyTokenFilter{T}"/> 生成的裸 SQL 谓词（已带括号），供手机端拼 where 列表。
+        /// <para>与客户端同一个实现，避免两边口径再次分叉。</para>
+        /// </summary>
+        public static string TokenPredicate(string field, IEnumerable<string> values)
+        {
+            SelectWrapper<Video> wrapper = new SelectWrapper<Video>();
+            ApplyTokenFilter(wrapper, field, values);
+            string where = wrapper.ToWhere(false).Trim();
+            if (where.Length == 0)
+                return string.Empty;
+
+            return where.StartsWith("where", StringComparison.OrdinalIgnoreCase)
+                ? where.Substring("where".Length).Trim()
+                : where;
+        }
+
         public void deleteVideoByIds(List<string> idList)
         {
             if (idList == null || idList.Count == 0)
@@ -151,7 +234,18 @@ namespace Jvedio.Mapper
             builder.Append($"delete from metadata_to_actor where DataID in ({ids});");
             builder.Append($"delete from metadata_to_label where DataID in ({ids});");
             builder.Append("commit;");
-            MapperManager.videoMapper.ExecuteNonQuery(builder.ToString());
+
+            // 中途失败时必须回滚：连接会停在未结束的事务里，之后所有写都落进同一个事务，
+            // 下一次 begin 直接报「cannot start a transaction within a transaction」，
+            // 于是「删不掉影片」会扩散成「整个软件再也写不进库」。
+            try {
+                MapperManager.videoMapper.ExecuteNonQuery(builder.ToString());
+            } catch (Exception ex) {
+                Jvedio.App.Logger?.Error($"删除影片失败（DataID: {ids}）：{ex}");
+                // 回滚本身也允许失败（事务可能早已结束），失败只记日志，不掩盖原始异常
+                MapperManager.videoMapper.TryExecuteNonQuery("rollback;");
+                throw;
+            }
         }
 
     }

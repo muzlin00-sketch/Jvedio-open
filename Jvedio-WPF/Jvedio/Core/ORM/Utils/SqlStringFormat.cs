@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 using System.Text.RegularExpressions;
 
 namespace Jvedio.Core.ORM.Utils
@@ -18,7 +19,14 @@ namespace Jvedio.Core.ORM.Utils
     /// </summary>
     public static class SqlStringFormat
     {
-        /// <summary>把对象转成可拼进 SQL 的文本：null → 空串，字符串里的单引号翻倍。</summary>
+        /// <summary>
+        /// 把对象转成可拼进 SQL 的文本：null → 空串，字符串里的单引号翻倍。
+        /// <para>
+        /// 浮点与 decimal 必须用 <see cref="CultureInfo.InvariantCulture"/>：
+        /// 中文区域下 <c>4.5.ToString()</c> 是 <c>"4,5"</c>，拼进 SQL 会落成 TEXT，
+        /// 数值比较/排序全部失效（<c>Rating &gt; 4</c> 查不到 4.5）。
+        /// </para>
+        /// </summary>
         public static string Format(object obj)
         {
             if (obj == null)
@@ -26,6 +34,9 @@ namespace Jvedio.Core.ORM.Utils
 
             if (obj is string str)
                 return FormatQuote(str);
+
+            if (obj is float || obj is double || obj is decimal)
+                return Convert.ToString(obj, CultureInfo.InvariantCulture);
 
             return obj.ToString();
         }

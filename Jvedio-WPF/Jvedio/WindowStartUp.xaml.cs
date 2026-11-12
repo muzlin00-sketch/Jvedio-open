@@ -122,7 +122,8 @@ namespace Jvedio
                 EnsureFileExists();
                 EnsureDirExists();
 
-                InitMapper(); // 初始化数据库
+                if (!InitMapper()) // 初始化数据库；失败已提示并退出，不能再往下跑
+                    return;
                 ConfigManager.Init(() => SetLang()); // 从数据库加载应用配置
 
                 await MoveOldFiles();
@@ -191,14 +192,79 @@ namespace Jvedio
 
 
         /// <summary>
-        /// 初始化数据库连接
+        /// 初始化数据库连接。
+        /// <para>
+        /// <b>失败必须退出</b>：半初始化的 DB 会让之后所有读写莫名其妙地失败，
+        /// 用户看到的是「软件能开、点什么都没反应」，比直接报错退出更难排查。
+        /// </para>
+        /// <para>
+        /// <b>首次启动建库是正常场景，不能被误杀</b>：库文件不存在时
+        /// <c>MapperManager.Init()</c> 会建库建表（<c>CreateTable</c> 对已存在的表跳过，
+        /// 补列语句走 <c>TryExecuteNonQuery</c>，都允许失败），成功时照常返回 true。
+        /// 所以只有「抛异常」或「返回 false」才算真失败；库文件是否存在只用来区分提示文案：
+        /// 不存在 → 首次建库失败（多半是 data 目录写不进去）；
+        /// 已存在 → 老库打不开（占用、损坏、权限）。
+        /// </para>
         /// </summary>
-        private void InitMapper()
+        /// <returns>初始化成功返回 true；失败已提示并触发退出，调用方应直接 return。</returns>
+        private bool InitMapper()
         {
-            if (!MapperManager.Init()) {
-                MsgBox.Show($"{LangManager.GetValueByKey("LibraryInitFailed")}");
-                App.Current.Shutdown();
+            bool dbExistsBeforeInit = false;
+            try {
+                dbExistsBeforeInit = File.Exists(SqlManager.DEFAULT_SQLITE_PATH);
+            } catch {
+                // 只用于区分提示文案，探测失败按「非首次」处理
             }
+
+            bool loaded;
+            try {
+                loaded = MapperManager.Init();
+            } catch (Exception ex) {
+                ReportDbInitFailed(ex, dbExistsBeforeInit);
+                return false;
+            }
+
+            if (!loaded) {
+                ReportDbInitFailed(null, dbExistsBeforeInit);
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// 数据库初始化失败：写日志 + 明确提示 + 退出，避免带着半初始化的 DB 继续跑。
+        /// </summary>
+        private void ReportDbInitFailed(Exception ex, bool dbExistsBeforeInit)
+        {
+            string detail = ex == null ? "（Init 返回 false）" : ex.Message;
+            try {
+                Logger.Error(ex == null
+                    ? $"数据库初始化失败（Init 返回 false，库文件此前{(dbExistsBeforeInit ? "已存在" : "不存在")}）"
+                    : $"数据库初始化失败（库文件此前{(dbExistsBeforeInit ? "已存在" : "不存在")}）：{ex}");
+            } catch {
+                // 日志本身失败不能挡住退出流程
+            }
+
+            string tip = dbExistsBeforeInit
+                ? $"数据库初始化失败：{detail}{Environment.NewLine}请检查 data 目录下的 app_datas.sqlite 是否被其它程序占用或已损坏。"
+                : $"首次建库失败：{detail}{Environment.NewLine}请检查程序 data 目录是否有写入权限。";
+
+            try {
+                MessageCard.Error(tip);
+            } catch {
+                // 提示失败也必须继续退出
+            }
+
+            // 紧接着就要 Shutdown，MessageCard 的浮层会被一起关掉，用户可能只看到「窗口闪一下」。
+            // 再用一个模态框把原因钉在屏幕上，用户确认后进程才退出。
+            try {
+                MsgBox.Show(tip);
+            } catch {
+                // 模态框失败也不能挡住退出
+            }
+
+            App.Current.Shutdown();
         }
 
 

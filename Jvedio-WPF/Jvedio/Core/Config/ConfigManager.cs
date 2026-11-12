@@ -107,7 +107,13 @@ namespace Jvedio
                     continue;
                 }
 
-                config.Read();
+                try {
+                    config.Read();
+                } catch (Exception ex) {
+                    // 单个配置读失败（启动早期 SQLITE_BUSY 很常见）只是该项回到默认值，
+                    // 不能让整个软件起不来；记日志并继续读下一个配置。
+                    Logger.Error($"读取配置失败，该项保持默认值：{item.Name}：{ex}");
+                }
             }
         }
 

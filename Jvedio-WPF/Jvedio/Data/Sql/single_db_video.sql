@@ -126,8 +126,8 @@ create table metadata_to_translation(
     id INTEGER PRIMARY KEY autoincrement,
     DataID INTEGER,
     FieldType VARCHAR(100),
-    TransaltionID INTEGER,
-    unique(DataID,FieldType,TransaltionID)
+    TranslationID INTEGER,
+    unique(DataID,FieldType,TranslationID)
 );
 CREATE INDEX metadata_to_translation_idx_DataID_FieldType ON metadata_to_translation (DataID,FieldType);
 COMMIT;

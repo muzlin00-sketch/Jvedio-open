@@ -37,9 +37,9 @@ COMMIT;
 
 -- 【翻译表】
 -- Platform 翻译平台：[baidu,youdao,google]
-drop table if exists common_transaltions;
-create table common_transaltions(
-    TransaltionID INTEGER PRIMARY KEY autoincrement,
+drop table if exists common_translations;
+create table common_translations(
+    TranslationID INTEGER PRIMARY KEY autoincrement,
 
     SourceLang VARCHAR(100),
     TargetLang VARCHAR(100),
@@ -51,7 +51,7 @@ create table common_transaltions(
     UpdateDate VARCHAR(30) DEFAULT(STRFTIME('%Y-%m-%d %H:%M:%S', 'NOW', 'localtime'))
 );
 
--- insert into common_transaltions
+-- insert into common_translations
 -- (SourceLang,TargetLang,SourceText,TargetText,Platform)
 -- values ('简体中文','English','人是生而自由的','Man is born free','youdao');
 

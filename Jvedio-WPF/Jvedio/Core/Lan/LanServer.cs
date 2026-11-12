@@ -355,7 +355,7 @@ namespace Jvedio.Core.Lan
 
             // 筛选维度列表
             if (path == "/api/filters") {
-                HandleFilters(response);
+                HandleFilters(request, response);
                 return;
             }
 
@@ -429,7 +429,12 @@ namespace Jvedio.Core.Lan
                 string sql = "update metadata set Grade=" +
                     grade.ToString(System.Globalization.CultureInfo.InvariantCulture) +
                     $", UpdateDate='{DateTime.Now:yyyy-MM-dd HH:mm:ss}' where DataID={dataId}";
-                mapper.ExecuteNonQuery(sql);
+                int affected = mapper.ExecuteNonQuery(sql);
+                if (affected <= 0) {
+                    // update 一行都没命中 = 这个 DataID 不存在；以前照样回 ok:true
+                    WriteError(response, 404, "video not found");
+                    return;
+                }
 
                 App.Logger?.Info($"评分已更新：DataID={dataId} Grade={grade}");
                 WriteJson(response, new { ok = true, dataId, grade });
@@ -463,7 +468,12 @@ namespace Jvedio.Core.Lan
 
                 string now = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
                 string sql = $"update metadata set ViewCount=ViewCount+1, ViewDate='{now}' where DataID={dataId}";
-                mapper.ExecuteNonQuery(sql);
+                int affected = mapper.ExecuteNonQuery(sql);
+                if (affected <= 0) {
+                    // 同上：没命中行就是 DataID 不存在，不能回 ok:true 骗前端
+                    WriteError(response, 404, "video not found");
+                    return;
+                }
 
                 WriteJson(response, new { ok = true, dataId, viewDate = now });
             } catch (Exception ex) {
@@ -872,10 +882,9 @@ namespace Jvedio.Core.Lan
                     }
 
                     // 与手机端直接播放一致：投屏也算「看过」
-                    try {
-                        MapperManager.metaDataMapper?.ExecuteNonQuery(
-                            $"update metadata set ViewCount=ViewCount+1, ViewDate='{DateTime.Now:yyyy-MM-dd HH:mm:ss}' where DataID={dataId}");
-                    } catch { /* 统计失败不影响投屏 */ }
+                    // 统计失败不影响投屏（旧实现是空 catch，现在改成显式 Try + 写日志）
+                    MapperManager.metaDataMapper?.TryExecuteNonQuery(
+                        $"update metadata set ViewCount=ViewCount+1, ViewDate='{DateTime.Now:yyyy-MM-dd HH:mm:ss}' where DataID={dataId}");
 
                     WriteJson(response, new { ok = true, device = target.Name, dataId, url = mediaUrl });
                     return;
@@ -1664,32 +1673,49 @@ namespace Jvedio.Core.Lan
         /// 返回可用于筛选的维度与取值，供前端渲染筛选面板。
         /// 只返回「实际有内容」的项，避免面板里一堆空选项。
         /// </para>
+        /// <para>
+        /// <b>必须按 dbId 过滤</b>：不带库过滤时手机筛选面板会混进其它库的类别/演员，
+        /// 点进去是另一部片子，与列表口径对不上（与 /api/videos?dbId= 保持一致）。
+        /// </para>
         /// </summary>
-        private void HandleFilters(HttpResponse response)
+        private void HandleFilters(HttpRequest request, HttpResponse response)
         {
             try {
                 var mapper = MapperManager.videoMapper;
                 var data = new Dictionary<string, object>();
 
+                long dbId = ParseLong(GetQuery(request, "dbId"), 0);
+                // 未指定库时保持原有行为（全库统计），由前端决定是否传 dbId
+                string dbWhere = dbId > 0 ? $" and metadata.DBId={dbId}" : string.Empty;
+                // metadata_video / metadata_to_actor 都不带 DBId，只能 join metadata 取
+                string joinMetadata = " join metadata on metadata.DataID=";
+
                 // 分类：Genre 是无分隔符拼接文本，只能整体统计
                 data["genres"] = TopValues(mapper,
-                    "select Genre from metadata where DataType=0 and Genre != ''", 40);
+                    "select metadata.Genre from metadata" +
+                    $" where metadata.DataType=0 and metadata.Genre != ''{dbWhere}", 40);
 
                 // 发行商
                 data["studios"] = TopValues(mapper,
-                    "select Studio from metadata_video where Studio != ''", 40);
+                    "select metadata_video.Studio from metadata_video" + joinMetadata + "metadata_video.DataID" +
+                    $" where metadata_video.Studio != ''{dbWhere}", 40);
 
                 // 系列
                 data["series"] = TopValues(mapper,
-                    "select Series from metadata_video where Series != ''", 40);
+                    "select metadata_video.Series from metadata_video" + joinMetadata + "metadata_video.DataID" +
+                    $" where metadata_video.Series != ''{dbWhere}", 40);
 
                 // 导演
                 data["directors"] = TopValues(mapper,
-                    "select Director from metadata_video where Director != ''", 40);
+                    "select metadata_video.Director from metadata_video" + joinMetadata + "metadata_video.DataID" +
+                    $" where metadata_video.Director != ''{dbWhere}", 40);
 
-                // 演员
+                // 演员：只保留真的关联到影片的（没关联的选不出任何片子）
                 data["actors"] = TopValues(mapper,
-                    "select ActorName from actor_info where ActorName != ''", 60);
+                    "select actor_info.ActorName from actor_info" +
+                    " join metadata_to_actor on metadata_to_actor.ActorID=actor_info.ActorID" +
+                    joinMetadata + "metadata_to_actor.DataID" +
+                    $" where metadata.DataType=0 and actor_info.ActorName != ''{dbWhere}", 60);
 
                 WriteJson(response, data);
             } catch (Exception ex) {
@@ -2550,9 +2576,13 @@ namespace Jvedio.Core.Lan
                 // 桌面端「我的收藏」= Grade > 0
                 where.Add("metadata.Grade > 0");
             } else if (string.Equals(view, "recent", StringComparison.OrdinalIgnoreCase)) {
-                // 桌面端「最近播放」= ViewDate 在最近 N 天内
-                string since = DateTime.Now.AddDays(-30).ToString("yyyy-MM-dd HH:mm:ss");
-                where.Add($"metadata.ViewDate >= '{since}'");
+                // 与桌面端「最近播放」完全同口径：同一个天数常量、同一种时间格式、同样带上界。
+                // 以前手机端只有下界（ViewDate >= 3 天前），桌面端是 Between(3 天前, 现在)，
+                // 于是手机端会把「明天」这种未来时间也当最近播放。
+                string since = Jvedio.Common.DateHelper.ToLocalDate(
+                    DateTime.Now.AddDays(-Jvedio.ViewModel.VieModel_Main.RECENT_DAY));
+                string until = Jvedio.Common.DateHelper.ToLocalDate(DateTime.Now);
+                where.Add($"metadata.ViewDate between '{since}' and '{until}'");
             }
 
             // 筛选条件
@@ -2574,8 +2604,15 @@ namespace Jvedio.Core.Lan
                     if (val != null)
                         total = Convert.ToInt64(val);
                 }
-            } catch {
-                total = 0;
+            } catch (Exception ex) {
+                // 不能像以前那样吞掉写 total=0：items 照常返回，而手机端用
+                // page >= TotalPages 判断「到底了」，total=0 会让第 1 页之后就翻不动。
+                // 用本页条数兜底同样不行：满页 20 条 → TotalPages=1 → 依旧判定到底，
+                // 只是把一个假数字换成另一个假数字。count 失败已说明库这一侧异常，
+                // 这里按 /api/videos 其它失败路径的既有契约（500 + 错误信息）处理，
+                // 由前端提示并可重试，不给出「只有一页」的错误结论。
+                App.Logger?.Error($"LAN 总数统计失败: {ex}");
+                throw;
             }
 
             string orderSql = BuildOrder(sort);
@@ -2600,6 +2637,7 @@ namespace Jvedio.Core.Lan
                 App.Logger?.Error($"LAN ToEntity 失败（rows={rows.Count}）: {ex}");
                 throw;
             }
+
             return list ?? new List<Video>();
         }
 
@@ -2627,8 +2665,10 @@ namespace Jvedio.Core.Lan
 
             switch (field) {
                 case "genres":
-                    // Genre 是拼接文本，用 like 匹配包含关系
-                    return "(" + string.Join(" or ", escaped.Select(v => "metadata.Genre like '%" + v.Trim('\'') + "%'")) + ")";
+                    // Genre 是多值字段（\u0007 分隔，首尾无分隔符），必须按 token 精确匹配：
+                    // 用 like '%值%' 做子串匹配会把「超巨乳」也当成「巨乳」命中。
+                    // 与桌面端点侧边栏类别共用 VideoMapper.ApplyTokenFilter，两端结果才会一致。
+                    return VideoMapper.TokenPredicate("metadata.Genre", values);
 
                 case "studios":
                     return $"metadata_video.Studio in ({inList})";
@@ -2652,24 +2692,25 @@ namespace Jvedio.Core.Lan
 
         private string BuildOrder(string sort)
         {
-            // 白名单排序字段，避免 SQL 注入
+            // 白名单排序字段，避免 SQL 注入；每个分支都补 DataID 作第二排序键，
+            // 否则主键大量同值时（标题全空、发行日期全空）翻页会出现重复/漏条
             switch ((sort ?? string.Empty).ToLowerInvariant()) {
                 case "date":
-                    return " order by metadata.ReleaseDate desc";
+                    return " order by metadata.ReleaseDate desc, metadata.DataID desc";
                 case "date_asc":
-                    return " order by metadata.ReleaseDate asc";
+                    return " order by metadata.ReleaseDate asc, metadata.DataID asc";
                 case "grade":
                     return " order by metadata.Grade desc, metadata.DataID desc";
                 case "viewcount":
                     return " order by metadata.ViewCount desc, metadata.DataID desc";
                 case "size":
-                    return " order by metadata_video.Size desc";
+                    return " order by metadata.Size desc, metadata.DataID desc";
                 case "size_asc":
-                    return " order by metadata_video.Size asc";
+                    return " order by metadata.Size asc, metadata.DataID asc";
                 case "title":
-                    return " order by metadata.Title asc";
+                    return " order by metadata.Title asc, metadata.DataID asc";
                 case "viewdate":
-                    return " order by metadata.ViewDate desc";
+                    return " order by metadata.ViewDate desc, metadata.DataID desc";
                 default:
                     return " order by metadata.DataID desc";
             }

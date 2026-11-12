@@ -212,7 +212,8 @@ namespace Jvedio
             if (vieModel.CurrentVideo != null && vieModel.CurrentVideo.TagStamp != null &&
                 vieModel.CurrentVideo.TagStamp.Any(arg => arg.TagID == TagStamp.TAG_ID_NEW_ADD)) {
                 string sql = $"delete from metadata_to_tagstamp where TagID='{TagStamp.TAG_ID_NEW_ADD}' and DataID='{DataID}'";
-                tagStampMapper.ExecuteNonQuery(sql);
+                // 只是去「新加入」标记，写失败不该挡住后面的刷新与播放
+                tagStampMapper.TryExecuteNonQuery(sql);
                 onRemoveTagStamp?.Invoke();
                 windowMain?.RefreshData(DataID);
             }
@@ -1351,9 +1352,18 @@ namespace Jvedio
                 return;
             TagStamp tagStamp = tagStamps.Where(arg => arg.TagID.Equals(tagID)).FirstOrDefault();
             if (tagStamp != null) {
+                int index = tagStamps.IndexOf(tagStamp);
                 tagStamps.Remove(tagStamp);
                 string sql = $"delete from metadata_to_tagstamp where TagID='{tagID}' and DataID='{DataID}'";
-                tagStampMapper.ExecuteNonQuery(sql);
+                try {
+                    tagStampMapper.ExecuteNonQuery(sql);
+                } catch (Exception ex) {
+                    // 写失败就把界面改回去，否则「看着删掉了、刷新后又回来」
+                    if (index >= 0 && index <= tagStamps.Count)
+                        tagStamps.Insert(index, tagStamp);
+                    Logger.Error($"删除标签失败（DataID={DataID} TagID={tagID}）：{ex}");
+                    MessageCard.Error($"删除标签失败：{ex.Message}");
+                }
             }
         }
 
@@ -1391,8 +1401,15 @@ namespace Jvedio
             long id = getDataID(stackPanel);
             if (id <= 0)
                 return;
-            metaDataMapper.UpdateFieldById("Grade", rate.Value.ToString(), id);
-            CanRateChange = false;
+            try {
+                metaDataMapper.UpdateFieldById("Grade", rate.Value.ToString(), id);
+            } catch (Exception ex) {
+                // 用户拖评分直接触发的写：失败要明确告知，不能让异常冒到全局处理器
+                Logger.Error($"更新评分失败（DataID={id}）：{ex}");
+                MessageCard.Error($"更新评分失败：{ex.Message}");
+            } finally {
+                CanRateChange = false;
+            }
         }
 
         private void LabelChanged(object sender, RoutedEventArgs eventArgs)

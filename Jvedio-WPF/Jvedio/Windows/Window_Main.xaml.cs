@@ -944,7 +944,9 @@ namespace Jvedio
         private void ScanComplete(object sender, EventArgs ev)
         {
             ScanTask scanTask = sender as ScanTask;
-            if (scanTask != null && scanTask.Success) {
+            // 门槛用 ScanResult 而不是 Success：扫描中途失败时前面已经导入的条目是真进库了的，
+            // 统计卡必须照常弹出来（用户才知道「已导入 N」），失败提示由 onError 负责。
+            if (scanTask != null && scanTask.ScanResult != null) {
 
                 Dispatcher.Invoke(() => {
                     vieModel.Statistic();

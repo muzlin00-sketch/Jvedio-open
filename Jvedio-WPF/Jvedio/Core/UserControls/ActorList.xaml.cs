@@ -675,12 +675,19 @@ nameof(ViewMode), typeof(bool), typeof(ActorList), new PropertyMetadata(false));
                 if (!SelectedActors.Where(arg => arg.ActorID == actorID).Any())
                     SelectedActors.Add(actor);
 
-                foreach (ActorInfo actorInfo in SelectedActors) {
-                    actorMapper.DeleteById(actorInfo.ActorID);
-                    string sql = $"delete from metadata_to_actor where metadata_to_actor.ActorID='{actorInfo.ActorID}'";
-                    actorMapper.ExecuteNonQuery(sql);
+                try {
+                    foreach (ActorInfo actorInfo in SelectedActors) {
+                        actorMapper.DeleteById(actorInfo.ActorID);
+                        string sql = $"delete from metadata_to_actor where metadata_to_actor.ActorID='{actorInfo.ActorID}'";
+                        actorMapper.ExecuteNonQuery(sql);
+                    }
+                } catch (Exception ex) {
+                    // 用户确认过的删除：失败要明确告知，不能让异常冒到全局处理器
+                    Logger.Error($"删除演员失败：{ex}");
+                    MessageCard.Error($"删除演员失败（可能只删掉了一部分，列表已按库内实际结果刷新）：{ex.Message}");
                 }
 
+                // 无论成败都按库内实际结果重载，避免界面显示「已删除」但库里还在
                 Select();
             }
         }

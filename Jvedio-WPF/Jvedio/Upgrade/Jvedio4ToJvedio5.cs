@@ -100,10 +100,18 @@ namespace Jvedio.Upgrade
             foreach (DateTime key in dict.Keys) {
                 List<string> list = dict[key];
                 if (list != null && list.Count > 0) {
+                    // VID 是旧库识别码/文件名，可能含单引号；逐项转义再拼，否则整条 update 语法错
+                    string vids = string.Join("','", list.Select(arg => SqlStringFormat.Format(arg)));
                     string sql = $"update metadata set ViewDate = '{key.ToLocalDate()}' " +
                                 "where DataID in (select DataID from metadata_video " +
-                                $"where VID in ('{string.Join("','", list)}')); ";
-                    metaDataMapper.ExecuteNonQuery(sql);
+                                $"where VID in ('{vids}')); ";
+                    // ExecuteNonQuery 已改为失败抛异常：这里是最佳努力的迁移，单条失败只记日志，
+                    // 不能让异常冒到 WindowStartUp.MoveOldFiles 把后面的迁移/启动步骤全部中断
+                    try {
+                        metaDataMapper.ExecuteNonQuery(sql);
+                    } catch (Exception ex) {
+                        Logger.Error(ex);
+                    }
                 }
             }
         }
@@ -373,16 +381,13 @@ namespace Jvedio.Upgrade
                             }
                         }
 
-                        long before = 0;
+                        // 逐条插入并回写真实 DataID（InsertBatch 内部逐条 Insert + last_insert_rowid 回写主键）。
+                        // 原实现用 metadata 行数 before++ 冒充 DataID：库里有删除过的行、或已有其它库的数据时，
+                        // 行数 ≠ 自增 DataID（现网 app_datas.sqlite：count=2356，min=1971，max=4522），
+                        // metadata_video / metadata_to_* 会整体挂到错误（甚至不存在的）行上。
+                        List<MetaData> metaDatas = detailMovies.Select(item => item.toMetaData()).ToList();
                         try {
-                            before = metaDataMapper.SelectCount();
-                        } catch (Exception ex) {
-                            Logger.Error(ex);
-                            return false;
-                        }
-
-                        try {
-                            metaDataMapper.InsertBatch(detailMovies.Select(item => item.toMetaData()).ToList());
+                            metaDataMapper.InsertBatch(metaDatas);
                         } catch (Exception ex) {
                             Logger.Error(ex);
                             return false;
@@ -391,10 +396,15 @@ namespace Jvedio.Upgrade
                         Logger.Info($"metaDataMapper 用时：{watch.ElapsedMilliseconds} ms");
 
                         watch.Restart();
-                        detailMovies.ForEach(arg => {
-                            before++;
+                        for (int i = 0; i < detailMovies.Count; i++) {
+                            DetailMovie arg = detailMovies[i];
+                            long dataID = metaDatas[i].DataID;
+                            if (dataID <= 0) {
+                                Logger.Error($"迁移数据：{Path.GetFileName(origin)} 第 {i + 1} 条 metadata 未回写 DataID，跳过该条");
+                                continue;
+                            }
                             Video video = arg.toVideo();
-                            video.DataID = before;
+                            video.DataID = dataID;
                             video.Path = arg.filepath;
                             video.ActorNames = arg.actor;
                             video.OldActorIDs = arg.actorid;
@@ -403,7 +413,7 @@ namespace Jvedio.Upgrade
                             video.Series = arg.tag.Replace(' ', Jvedio.Common.ConstValues.Separator);
                             video.Label = arg.label.Replace(' ', Jvedio.Common.ConstValues.Separator);
                             videos.Add(video);
-                        });
+                        }
 
                         try {
                             videoMapper.InsertBatch(videos);
@@ -415,9 +425,20 @@ namespace Jvedio.Upgrade
                         Logger.Info($"videoMapper 用时：{watch.ElapsedMilliseconds} ms");
                         watch.Restart();
 
+                        // 三个 handler 各自独立 try：一个失败不能连坐另外两个，迁移要尽量把能搬的搬完
                         try {
-                            handleChinesetitle(detailMovies);
+                            handleChinesetitle(detailMovies, metaDatas);
+                        } catch (Exception ex) {
+                            Logger.Error(ex);
+                        }
+
+                        try {
                             handleActor(videos);
+                        } catch (Exception ex) {
+                            Logger.Error(ex);
+                        }
+
+                        try {
                             handleLabel(videos);
                         } catch (Exception ex) {
                             Logger.Error(ex);
@@ -447,19 +468,37 @@ namespace Jvedio.Upgrade
                 if (list.Count > 0) {
                     string sql = $"insert into metadata_to_tagstamp (DataID,TagID) values {string.Join(",", list)}";
 
-                    videoMapper.ExecuteNonQuery(sql);
+                    // 前面几步都已落库，这一步失败不该让整个文件迁移抛出去、连带中断
+                    // MoveDatabases 里其余旧库文件的迁移（ExecuteNonQuery 已改为失败抛异常）
+                    try {
+                        videoMapper.ExecuteNonQuery(sql);
+                    } catch (Exception ex) {
+                        Logger.Error(ex);
+                    }
                 }
 
                 return true;
             });
         }
 
-        private static void handleChinesetitle(List<DetailMovie> list)
+        /// <summary>
+        /// 迁移中文标题的翻译，并写 metadata_to_translation 映射。
+        /// <para>
+        /// DataID 取 metadata 插入后回写的真实值（metaDatas 与旧 movie 行一一对应），
+        /// 不能用循环下标 i+1：迁移前库里已有数据时 DataID 既不是从 1 开始也不连续。
+        /// </para>
+        /// </summary>
+        private static void handleChinesetitle(List<DetailMovie> list, List<MetaData> metaDatas)
         {
-            for (int i = 0; i < list.Count; i++) {
+            if (metaDatas == null)
+                return;
+            for (int i = 0; i < list.Count && i < metaDatas.Count; i++) {
                 string chinesetitle = list[i].chinesetitle;
                 string title = list[i].title;
                 if (string.IsNullOrEmpty(chinesetitle) || string.IsNullOrEmpty(title))
+                    continue;
+                long dataID = metaDatas[i].DataID;
+                if (dataID <= 0)
                     continue;
                 TranslationMapper mapper = new TranslationMapper();
                 Translation translation = new Translation();
@@ -469,8 +508,12 @@ namespace Jvedio.Upgrade
                 translation.TargetText = chinesetitle;
                 translation.Platform = Jvedio.Core.Enums.TranslationPlatform.youdao.ToString();
                 mapper.Insert(translation);
-                string sql = "insert into metadata_to_translation(DataID,FieldType,TransaltionID) " +
-                    $"values ({i + 1},'Title',{translation.TranslationID})";
+                if (translation.TranslationID <= 0)
+                    continue;
+                // 真实列名是 TranslationID；原代码写成 TransaltionID，每条 INSERT 都报 no such column，
+                // 异常被 BaseMapper.ExecuteNonQuery 吞掉，映射全部丢失
+                string sql = "insert into metadata_to_translation(DataID,FieldType,TranslationID) " +
+                    $"values ({dataID},'Title',{translation.TranslationID})";
                 metaDataMapper.ExecuteNonQuery(sql);
             }
         }
@@ -495,7 +538,7 @@ namespace Jvedio.Upgrade
             foreach (long dataID in label_dict.Keys) {
                 List<string> labels = label_dict[dataID];
                 foreach (string label in labels) {
-                    dataId_to_LabelID.Add($"({dataID},'{label}')");
+                    dataId_to_LabelID.Add($"({SqlStringFormat.Format(dataID)},'{SqlStringFormat.Format(label)}')");
                 }
             }
 
@@ -519,7 +562,8 @@ namespace Jvedio.Upgrade
             HashSet<string> hashSet = actorInfos.Select(x => x.ActorName).ToHashSet();
             to_insert.ExceptWith(hashSet);
             if (to_insert.Count > 0) {
-                string sql = $"insert into actor_info(WebType,Gender,ActorName) values ('bus',1,'{string.Join("'),('bus',1,'", to_insert)}')";
+                // 演员名可能含单引号（旧库脏数据），逐项转义；多行 VALUES 的结构保持不变
+                string sql = $"insert into actor_info(WebType,Gender,ActorName) values ('bus',1,'{string.Join("'),('bus',1,'", to_insert.Select(arg => SqlStringFormat.Format(arg)))}')";
                 actorMapper.ExecuteNonQuery(sql);
             }
 
@@ -530,13 +574,10 @@ namespace Jvedio.Upgrade
             List<UrlCode> urlCodes = new List<UrlCode>();
 
             List<string> insert_list = new List<string>();
-            long count = metaDataMapper.SelectCount();
             for (int i = 0; i < list.Count; i++) {
                 string actor = list[i].ActorNames; // 演员A 演员B 演员C
-                string actorid = list[i].OldActorIDs;
                 if (string.IsNullOrEmpty(actor))
                     continue;
-                UrlCode urlCode = new UrlCode();
                 string[] actorNames = actor.Split(new char[] { '/', ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 string[] actorIds = list[i].OldActorIDs.Split(new char[] { '/', ' ' }, StringSplitOptions.RemoveEmptyEntries);
                 if (actorIds.Length == actorNames.Length) {
@@ -545,10 +586,14 @@ namespace Jvedio.Upgrade
                         string actorName = actorNames[j];
                         if (string.IsNullOrEmpty(actorName))
                             continue;
-                        urlCode.LocalValue = actorName;
-                        urlCode.RemoteValue = actorIds[j];
-                        urlCode.WebType = list[i].WebType;
-                        urlCode.ValueType = "actor";
+                        // 每个演员必须一个独立实例：原来 UrlCode 建在循环外，同一个对象被反复塞进
+                        // urlCodes，结果每部片子只剩最后一个演员的 Local/RemoteValue，且重复 N 次
+                        UrlCode urlCode = new UrlCode() {
+                            LocalValue = actorName,
+                            RemoteValue = actorIds[j],
+                            WebType = list[i].WebType,
+                            ValueType = "actor",
+                        };
                         urlCodes.Add(urlCode);
                     }
                 }
@@ -805,9 +850,16 @@ namespace Jvedio.Upgrade
                         values.Add($"('{SqlStringFormat.Format(labelName)}',{SqlStringFormat.Format(dataID)})");
                     }
 
+                    if (values.Count == 0)
+                        continue;
                     string sql = "insert or replace into metadata_to_label(LabelName,DataID) " +
                              $"values {string.Join(",", values)}";
-                    metaDataMapper.ExecuteNonQuery(sql);
+                    // 同 MoveRecentWatch：迁移失败只记日志，不能连坐调用方的后续启动步骤
+                    try {
+                        metaDataMapper.ExecuteNonQuery(sql);
+                    } catch (Exception ex) {
+                        Logger.Error(ex);
+                    }
                 }
             }
         }
@@ -830,21 +882,10 @@ namespace Jvedio.Upgrade
             if (oldSqlite == null || sr == null)
                 return;
 
-            // 先获得当前 transaltion 表的最大 id
-            SelectWrapper<Translation> wrapper = new SelectWrapper<Translation>();
-            wrapper.Select("MAX(TransaltionID) as TransaltionID");
-            long l = 0;
-            Translation translation = null;
-            try {
-                translation = translationMapper.SelectOne(wrapper);
-            } catch (Exception ex) {
-                Logger.Error(ex);
-                return;
-            }
-
-            if (translation != null)
-                l = translation.TranslationID;
-
+            // 原来这里先查 MAX(TransaltionID) 再用「最大 id + 序号」推算新 TranslationID，
+            // 但 common_translations 的真实列名是 TranslationID，该查询每次都报 no such column，
+            // 异常被 catch 吞掉后直接 return，整个翻译迁移从未执行过。
+            // 现在 TranslationID 由 InsertBatch 逐条回写（见下），无需预先推算。
             List<Translation> translations = new List<Translation>();
             HashSet<string> set = new HashSet<string>();
             while (sr.Read()) {
@@ -874,7 +915,6 @@ namespace Jvedio.Upgrade
                 }
             }
 
-            l += 1;     // 在原基础上 +1
             try {
                 translationMapper.InsertBatch(translations);
             } catch (Exception ex) {
@@ -903,8 +943,13 @@ namespace Jvedio.Upgrade
                     if (dataID <= 0)
                         continue;
                     string fieldType = i % 2 == 0 ? "Title" : "Plot";
-                    string sql = "insert or replace into metadata_to_translation(DataID,FieldType,TransaltionID) " +
-                                $"values ({dataID},'{fieldType}',{i + l})";
+                    // TranslationID 用 InsertBatch 回写的真实自增值，不用「最大 id + 序号」推算；
+                    // 真实列名是 TranslationID（原代码写成 TransaltionID，INSERT 必然 no such column）
+                    long translationID = trans.TranslationID;
+                    if (translationID <= 0)
+                        continue;
+                    string sql = "insert or replace into metadata_to_translation(DataID,FieldType,TranslationID) " +
+                                $"values ({dataID},'{fieldType}',{translationID})";
                     metaDataMapper.ExecuteNonQuery(sql);
                 }
             }

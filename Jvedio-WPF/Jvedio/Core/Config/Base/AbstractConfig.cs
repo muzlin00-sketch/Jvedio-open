@@ -62,8 +62,12 @@ namespace Jvedio.Core.Config.Base
                 try {
                     object converted = ConvertForProperty(value, prop.PropertyType);
                     prop.SetValue(this, converted, null);
-                } catch {
-                    // 单项失败不影响其它配置项
+                } catch (Exception ex) {
+                    // 单项失败不影响其它配置项，但必须留痕：
+                    // 静默 continue 会让「改了端口/缓存过期时间，重启后仍是默认值」变成无迹可寻的问题
+                    Logger.Error($"读取配置失败，该项保持默认值：{ConfigName}.{key}" +
+                        $"（值={value}，实际类型={value.GetType().Name}，" +
+                        $"期望类型={prop.PropertyType.Name}）：{ex.Message}");
                     continue;
                 }
             }

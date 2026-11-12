@@ -81,13 +81,13 @@ namespace Jvedio
             // 「duplicate column name」，原实现直接吞掉异常并写一条错误日志，
             // 导致每次启动日志里都有几条假错误。这里先检查再执行。
             foreach (string sql in Sqlite.SQL.SqlCommands) {
-                try {
-                    if (IsAddColumnDuplicated(sql))
-                        continue;
-                    metaDataMapper.ExecuteNonQuery(sql);
-                } catch (Exception ex) {
-                    Logger.Error(ex);
-                }
+                if (IsAddColumnDuplicated(sql))
+                    continue;
+
+                // 失败可接受：这是「给老库补列」的幂等 DDL，单条补列失败不该阻断启动
+                // （表结构已由上面的 CreateTable 建好，后续读写最多按缺列报错，不会因此静默丢数据）。
+                // 但必须留下可查的日志——这里只用 TryExecuteNonQuery，不再吞成静默。
+                metaDataMapper.TryExecuteNonQuery(sql);
             }
 
             Loaded = true;

@@ -99,28 +99,39 @@ namespace Jvedio
                     if (fileExt.Contains(Path.GetExtension(item).ToLower()))
                         videoPaths.Add(item);
                     else
-                        notImport.Add(item, NotImportReason.NotInExtension);
+                        // 同一个文件可能被重复枚举（扫描根目录重叠、父目录与子目录同时加入），
+                        // Dictionary.Add 遇到重复键会抛 ArgumentException，而这行在 try 之外——
+                        // 抛出去就是整趟扫描静默中止、界面没有任何提示。
+                        notImport[item] = NotImportReason.NotInExtension;
                 }
             }
 
             // 1. 先识别 nfo 再导入视频，避免路径覆盖
             if (insertNFO && nfoPaths.Count > 0) {
                 foreach (var item in nfoPaths) {
-                    Movie movie = null;
+                    Video video = null;
                     try {
-                        movie = Movie.GetInfoFromNfo(item);
+                        Movie movie = Movie.GetInfoFromNfo(item);
+                        if (movie != null) {
+                            // toVideo / ComputeFast 也可能抛（字段畸形、文件被占用），
+                            // 一并放进 try：否则一个坏 nfo 会把整趟扫描打断且不计入任何统计
+                            video = movie.toVideo();
+                            video.Path = item;
+                            video.LastScanDate = Jvedio.Common.DateHelper.Now();
+                            video.Hash = Jvedio.Common.FileHash.ComputeFast(video.Path);
+                        }
                     } catch (Exception ex) {
+                        // 解析失败不能只是 continue：这个文件在「导入/未导入/NFO失败」三处都不出现，
+                        // 用户看到的只是"这个 nfo 好像没生效"。记进 failNFO 并在扫描详情里可见。
+                        Logger.Error($"NFO 解析失败：{item}");
                         Logger.Error(ex);
+                        failNFO.Add(item);
                         continue;
                     }
 
-                    if (movie != null) {
-                        Video video = movie.toVideo();
-                        video.Path = item;
-                        video.LastScanDate = Jvedio.Common.DateHelper.Now();
-                        video.Hash = Jvedio.Common.FileHash.ComputeFast(video.Path);
+                    if (video != null)
                         import.Add(video);
-                    } else
+                    else
                         failNFO.Add(item); // 未从 nfo 中识别出有效的信息
                 }
             }
@@ -146,6 +157,9 @@ namespace Jvedio
                 } catch (OperationCanceledException) {
                     callBack?.Invoke($"{SuperControls.Style.LangManager.GetValueByKey("Cancel")}");
                 } catch (Exception ex) {
+                    // 原来只回调一条消息（任务内存日志，不落盘），事后无从排查
+                    Logger.Error("识别视频失败");
+                    Logger.Error(ex);
                     callBack?.Invoke(ex.Message);
                 }
             }

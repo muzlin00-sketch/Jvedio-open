@@ -410,7 +410,10 @@ namespace Jvedio.ViewModel
                 };
 
                 MetaData metaData = video.toMetaData();
-                metaDataMapper.Insert(metaData);
+                // 必须回写自增主键：Video.DataID 是 new 出来的独立字段，不会随 MetaData 同步，
+                // 直接 Insert 会写出 DataID=0 的孤儿行，后面的 metadata_to_tagstamp 也全指向 0
+                long id = Convert.ToInt64(metaDataMapper.InsertAndGetID(metaData));
+                video.DataID = id;
                 videoMapper.Insert(video);
                 videoList.Add(video);
                 Logger.Info($"add new video: {vid}");
@@ -444,7 +447,8 @@ namespace Jvedio.ViewModel
             if (list.Count > 0) {
                 string sql =
                     $"insert or ignore into metadata_to_tagstamp (DataID,TagID) values {string.Join(",", list)}";
-                videoMapper.ExecuteNonQuery(sql);
+                // 标记失败不影响影片已入库：只丢「新加入」这个展示标记，不让异常冒到 UI 线程
+                videoMapper.TryExecuteNonQuery(sql);
             }
         }
 
@@ -517,11 +521,16 @@ namespace Jvedio.ViewModel
                     break;
 
                 case LabelType.Genre:
+                    // Genre 是多值字段（\u0007 分隔），与手机端 /api/videos?genres= 共用同一个匹配实现
+                    tabName = LangManager.GetValueByKey(typeName);
+                    VideoMapper.ApplyTokenFilter(ExtraWrapper, typeName, new string[] { label });
+                    break;
                 case LabelType.Series:
                 case LabelType.Studio:
                 case LabelType.Director:
+                    // 计数是 GROUP BY 精确分组，点进去也必须精确匹配，不能用 Like 做子串匹配
                     tabName = LangManager.GetValueByKey(typeName);
-                    ExtraWrapper.Like(typeName, label);
+                    ExtraWrapper.Eq(typeName, label);
                     break;
                 default:
                     break;

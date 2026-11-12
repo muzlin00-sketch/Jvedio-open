@@ -1,5 +1,6 @@
 using Jvedio.Core.DataBase;
 using Jvedio.Core.Enums;
+using Jvedio.Core.ORM.Enums;
 using Jvedio.Core.ORM.Mapper;
 using Jvedio.Core.ORM.Wrapper;
 using System;
@@ -54,25 +55,55 @@ namespace Jvedio.Mapper.BaseMapper
             }
         }
 
+        /// <summary>
+        /// 执行一条写语句（Insert / InsertBatch / Update / UpdateById / UpdateField / Delete 全部经这里）。
+        /// <para>
+        /// <b>失败一律抛异常，不再吞成 -1。</b>改造前这里是
+        /// <c>catch (Exception ex) { Logger.Error(ex); } return -1;</c>：
+        /// 受影响行数变成 -1，而调用方普遍拿它当行数用（或干脆不看返回值），
+        /// 于是「已导入 11 条」可以和「一条都没进库」同时成立（2026-11-11 真实事故）。
+        /// </para>
+        /// <para>
+        /// 允许失败的场景（幂等 DDL、事务边界、清理与统计语句）请显式改用
+        /// <see cref="AbstractMapper{T}.TryExecuteNonQuery(string)"/>，它会返回 bool 并写日志。
+        /// </para>
+        /// </summary>
         public override int ExecuteNonQuery(string sql)
         {
-            try {
-                using (DataBaseGate.EnterWrite()) {
-                    if (Main.CurrentDataBaseType == DataBaseType.SQLite) {
-                        if (SqliteMapper == null)
-                            return -1;
-                        return SqliteMapper.ExecuteNonQuery(sql);
-                    } else if (Main.CurrentDataBaseType == DataBaseType.MySQL) {
-                        if (MySQLMapper == null)
-                            return -1;
-                        return MySQLMapper.ExecuteNonQuery(sql);
-                    }
+            using (DataBaseGate.EnterWrite()) {
+                if (Main.CurrentDataBaseType == DataBaseType.SQLite) {
+                    if (SqliteMapper == null)
+                        throw new InvalidOperationException(
+                            "SQLite Mapper 未初始化（Init 未调用或已 Dispose），写语句未执行：" + sql);
+                    return SqliteMapper.ExecuteNonQuery(sql);
                 }
-            } catch (Exception ex) {
-                Logger.Error(ex);
+
+                if (Main.CurrentDataBaseType == DataBaseType.MySQL) {
+                    if (MySQLMapper == null)
+                        throw new InvalidOperationException(
+                            "MySQL Mapper 未初始化（Init 未调用或已 Dispose），写语句未执行：" + sql);
+                    return MySQLMapper.ExecuteNonQuery(sql);
+                }
             }
 
-            return -1;
+            throw new NotSupportedException(
+                $"不支持的数据源类型 {Main.CurrentDataBaseType}，写语句未执行：" + sql);
+        }
+
+        /// <summary>
+        /// 插入一条并回写主键：整段持有同一个写锁，避免「插完再读 rowid」被别的线程插队。
+        /// <para>
+        /// <see cref="Jvedio.Core.DataBase.DataBaseGate"/> 支持同线程重入，
+        /// 因此内层 <see cref="AbstractMapper{T}.Insert(T, InsertMode)"/>
+        /// 再取写锁不会死锁，锁粒度仍限制在「一条插入」而不是整批，
+        /// 不会把导入上千条时的整个批量都变成独占、拖死界面读操作。
+        /// </para>
+        /// </summary>
+        protected override int InsertAndWriteBackId(T entity, InsertMode mode)
+        {
+            using (DataBaseGate.EnterWrite()) {
+                return base.InsertAndWriteBackId(entity, mode);
+            }
         }
 
 

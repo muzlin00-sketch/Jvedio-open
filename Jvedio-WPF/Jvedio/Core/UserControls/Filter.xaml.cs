@@ -1,4 +1,5 @@
 using Jvedio.Core.CustomEventArgs;
+using Jvedio.Core.Enums;
 using Jvedio.Entity;
 using Jvedio.Entity.CommonSQL;
 using Jvedio.Mapper;
@@ -60,8 +61,10 @@ namespace Jvedio.Core.UserControls
 
         private static Main MainWindow { get; set; }
 
+        // 时长分档边界（分钟），与 Filter.xaml 的按钮文案一一对应：
+        // <30min / 30min-1h / 1h-2h / 2h-3h / >3h，最后一项以 TimeList[4]=180 为下界
         private static List<int> TimeList { get; set; } =
-            new List<int>() { 0, 30, 60, 120, 240, 360 };
+            new List<int>() { 0, 30, 60, 120, 180 };
 
         /// <summary>
         /// 单位 MB
@@ -509,11 +512,20 @@ namespace Jvedio.Core.UserControls
 
 
             if (new MsgBox(SuperControls.Style.LangManager.GetValueByKey("IsToDelete") + $"{LangManager.GetValueByKey("TagStamp")} 【{tagStamp.TagName}】").ShowDialog() == true) {
-                tagStampMapper.DeleteById(id);
+                try {
+                    tagStampMapper.DeleteById(id);
 
-                // 删除
-                string sql = $"delete from metadata_to_tagstamp where TagID={tagStamp.TagID};";
-                tagStampMapper.ExecuteNonQuery(sql);
+                    // 删除
+                    string sql = $"delete from metadata_to_tagstamp where TagID={tagStamp.TagID};";
+                    tagStampMapper.ExecuteNonQuery(sql);
+                } catch (Exception ex) {
+                    // 用户确认过的删除：失败要明确告知，不能让异常冒到全局处理器
+                    App.Logger?.Error($"删除标签失败（TagID={tagStamp.TagID}）：{ex}");
+                    MessageCard.Error($"删除标签失败（可能只删掉了一部分，列表已按库内实际结果刷新）：{ex.Message}");
+                    // 按库内实际结果重载，避免界面显示「已删除」但库里还在
+                    InitTagStamp();
+                    return;
+                }
                 InitTagStamp();
                 onTagStampDelete?.Invoke(tagStamp.TagID);
             }
@@ -723,9 +735,14 @@ namespace Jvedio.Core.UserControls
                 }
                 if (idx > 0) {
                     int exists = (bool)pictureReverse.IsChecked ? 0 : 1;
+                    // 面板顺序：全部(0)/海报(1)/缩略图(2)/预览(3)/截图(4)，
+                    // 而 ImageType 是 Small=0、Big=1，不能直接用 idx-1（会把海报缩略图对调）
+                    int imageType = idx == 1 ? (int)ImageType.Big
+                        : idx == 2 ? (int)ImageType.Small
+                        : idx - 1;
                     sql += VideoMapper.SQL_JOIN_COMMON_PICTURE_EXIST;
                     wrapper.Eq("common_picture_exist.PathType", ConfigManager.Settings.PicPathMode)
-                        .Eq("common_picture_exist.ImageType", idx - 1)
+                        .Eq("common_picture_exist.ImageType", imageType)
                         .Eq("common_picture_exist.Exist", exists);
                 }
             }
@@ -738,7 +755,9 @@ namespace Jvedio.Core.UserControls
                 if (timeIndex < 5) {
                     wrapper.Ge(field, TimeList[timeIndex - 1]).Le(field, TimeList[timeIndex]);
                 } else if (timeIndex == 5) {
-                    wrapper.Ge(field, TimeList[timeIndex]);
+                    // >3h：下界 180min（TimeList[4]）。原写法 Ge(TimeList[5])=360 即 >=6h，
+                    // 与按钮文案差了一倍
+                    wrapper.Ge(field, TimeList[4]);
                 }
             }
 
@@ -771,7 +790,9 @@ namespace Jvedio.Core.UserControls
 
             List<ToggleButton> yearList = yearWrapPanel.Children.OfType<ToggleButton>().Where(item => (bool)item.IsChecked).ToList();
             if (yearList.Count > 0 && yearList.Count != yearWrapPanel.Children.Count) {
-                field = "ReleaseYear";
+                // 选项来自 ReleaseDate 的年份前缀，过滤也必须用同一来源：
+                // metadata.ReleaseYear 全库为 0（写库补列是扫描侧的事），按它过滤必然 0 结果
+                field = "substr(metadata.ReleaseDate,1,4)";
                 int count = yearList.Count;
                 List<int> list = yearList.Select(item => int.Parse(item.Content.ToString())).ToList();
                 wrapper.Eq(field, list[0]).LeftBracket().Or();

@@ -1,4 +1,5 @@
-﻿using Jvedio.Core.Config.Base;
+using Jvedio.Core.Config.Base;
+using System;
 
 namespace Jvedio.Core.Config.Data
 {
@@ -199,6 +200,50 @@ namespace Jvedio.Core.Config.Data
             set {
                 _SortType = value;
                 RaisePropertyChanged();
+            }
+        }
+
+        /// <summary>
+        /// 排序方向一次性迁移标记。
+        /// <para>
+        /// 老版本在时间类排序（导入时间/创建时间/发行日期）下存的是升序，
+        /// 导致打开软件时最新影片在最后一页。启动读配置时若命中该组合，
+        /// 强制改为降序并置此标记；之后用户手动选回升序不再被覆盖。
+        /// </para>
+        /// </summary>
+        private bool _SortDirMigrated;
+        public bool SortDirMigrated {
+            get { return _SortDirMigrated; }
+            set {
+                _SortDirMigrated = value;
+                RaisePropertyChanged();
+            }
+        }
+
+        public override void Read()
+        {
+            base.Read();
+            MigrateSortDirection();
+        }
+
+        private void MigrateSortDirection()
+        {
+            if (SortDirMigrated)
+                return;
+
+            // 先标记再改值：无论本次是否命中，都只迁移一次
+            SortDirMigrated = true;
+            if (Jvedio.Core.UserControls.ViewModels.VieModel_VideoList.IsTimeSortField((int)SortType) && !SortDescending)
+                SortDescending = true;
+
+            // 迁移标记与 SortDescending 都已经在内存里生效，写库只是让「下次启动不必再迁」。
+            // Read() 是在启动早期被调用的，此时 SQLITE_BUSY 很常见；而 Save() 失败会抛异常，
+            // 让它冒出去会把整个启动带崩——所以这里只记日志：
+            // 标记没落盘只是下次启动再迁一次，迁移本身幂等，无害。
+            try {
+                Save();
+            } catch (Exception ex) {
+                Jvedio.App.Logger?.Error($"保存排序方向迁移标记失败（下次启动会重新迁移一次，不影响本次运行）：{ex}");
             }
         }
 
