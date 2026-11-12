@@ -757,7 +757,6 @@
     <Resource Include="Resources\Picture\新增.png" />
     <Resource Include="Resources\Picture\导入.png" />
     <Resource Include="Resources\Picture\asso.png" />
-    <Content Include="Data\Sql\app_cache.sql" />
     <Content Include="Data\Sql\single_db_comic.sql" />
     <Content Include="Data\Sql\single_db_game.sql" />
     <Content Include="Data\Sql\single_db_picture.sql" />
