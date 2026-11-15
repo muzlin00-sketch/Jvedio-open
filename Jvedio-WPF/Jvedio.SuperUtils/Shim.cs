@@ -553,13 +553,44 @@ namespace SuperUtils.NetWork.Entity
 
 namespace SuperUtils.NetWork.Crawler
 {
+    /// <summary>
+    /// 抓取请求头。
+    /// <para>
+    /// 原版是「实例构造 <c>CrawlerHeader(IWebProxy)</c> + 实例只读属性 <c>Default</c>」。
+    /// 闭源 <c>SuperControls.Style.Plugin.Crawler.CrawlerHeader</c> 的静态构造就是这样取 GitHub
+    /// 请求头的：<c>new SuperUtils.NetWork.Crawler.CrawlerHeader(proxy).Default</c>。
+    /// </para>
+    /// <para>
+    /// 重建时误写成「无参构造 + 静态属性」，编译期不报错（Jvedio 自己不用这个类型），
+    /// 运行时插件中心窗口一打开就抛
+    /// <c>MissingMethodException: 找不到方法 "Void SuperUtils.NetWork.Crawler.CrawlerHeader..ctor(System.Net.IWebProxy)"</c>，
+    /// 外层还包着 TypeInitializationException，表现为「插件中心点了就程序异常」（见踩坑约定 #38）。
+    /// </para>
+    /// </summary>
     public class CrawlerHeader
     {
-        public static RequestHeader Default { get; } = new RequestHeader() {
-            Headers = new Dictionary<string, string>() {
-                { "User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36" },
-            },
-        };
+        public const string DEFAULT_USER_AGENT =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36";
+
+        private readonly IWebProxy webProxy;
+
+        public CrawlerHeader() { }
+
+        public CrawlerHeader(IWebProxy webProxy)
+        {
+            this.webProxy = webProxy;
+        }
+
+        public RequestHeader Default {
+            get {
+                return new RequestHeader() {
+                    WebProxy = webProxy,
+                    Headers = new Dictionary<string, string>() {
+                        { "User-Agent", DEFAULT_USER_AGENT },
+                    },
+                };
+            }
+        }
     }
 }
 

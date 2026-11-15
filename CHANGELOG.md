@@ -90,6 +90,10 @@
 - **发布包里的手机页面一直是旧的**：`bin\` 下没有 `Web\` 目录，重打包时 `Web\index.html` 永远按旧包原样保留，
   于是 exe 内嵌新页面、磁盘副本还是旧的（`/api/health` 报 `stale=true`，手机端拿到旧页面）。
   现在打包时从源码 `Resources\Web` 覆盖。
+- **插件中心一打开就「程序异常」**：自建 `SuperUtils` 里 `CrawlerHeader` 写成了「无参构造 + 静态 `Default`」，
+  而闭源控件库要的是「`CrawlerHeader(IWebProxy)` + 实例 `Default`」，缺方法只在运行时炸
+  （`MissingMethodException` 被包进 `TypeInitializationException`，弹窗只说"程序异常"）。
+  已按原版签名改回，见 [踩坑约定 #38](项目文档/踩坑约定.md)。
 
 ### 变更
 
