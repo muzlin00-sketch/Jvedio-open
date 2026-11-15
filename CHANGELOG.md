@@ -82,6 +82,14 @@
 - 设置窗口以前只有点「应用」才保存下载与刮削配置，直接关窗口会丢；现在关窗口也会落盘。
 - 文件名解析修正：`让子弹飞 (2010).mp4` 这类带括号年份的文件，标题不再被截成 `让子弹飞 (`。
 - `build.ps1 -Configuration Release` 以前必然失败（`SuperUtils` 引用路径写死 `Debug`），现已修正。
+- **列表一条都加载不出来（严重，11-13 那版）**：列表查询把 `metadata_video.ExtraInfo` 写成了 `metadata.ExtraInfo`，
+  `metadata` 表没有这一列，整条 SQL 直接报 `no such column`，启动后主界面列表空白，
+  而 `/api/health` 返回 200（它只探静态资源、不碰数据库），部署验证全绿。列名已归位，
+  启动时还会逐列校验查询字段并把具体列名写进日志；部署验证补了 `scripts/check-startup.ps1`
+  （端口 / 页面 / health / 列表接口 / 日志一起判），见 [踩坑约定 #37](项目文档/踩坑约定.md)。
+- **发布包里的手机页面一直是旧的**：`bin\` 下没有 `Web\` 目录，重打包时 `Web\index.html` 永远按旧包原样保留，
+  于是 exe 内嵌新页面、磁盘副本还是旧的（`/api/health` 报 `stale=true`，手机端拿到旧页面）。
+  现在打包时从源码 `Resources\Web` 覆盖。
 
 ### 变更
 
