@@ -114,4 +114,5 @@ Remove-Item -LiteralPath $stageDir -Recurse -Force
 Write-Host '[6/6] 完成'
 Write-Host ('      安装目录: ' + $InstallDir)
 Write-Host ('      回滚备份: ' + $backupDir)
-Write-Host '      下一步：手动启动 Jvedio.exe，确认能进主界面、手机端 5200 端口可访问'
+Write-Host '      下一步：手动启动 Jvedio.exe，然后跑启动自检（见踩坑约定 #37）：'
+Write-Host ('        pwsh -NoProfile -File .\scripts\check-startup.ps1 -Port 5200 -AppDir ''' + $InstallDir + '''')

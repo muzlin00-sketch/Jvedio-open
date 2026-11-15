@@ -103,8 +103,11 @@ namespace Jvedio.Core.UserControls.ViewModels
             "metadata.CreateDate",
             "metadata.UpdateDate",
             // 编辑保存是「整实体写回」，这两列不查出来会被写成 0 / 空串
+            // 注意 ExtraInfo 在 metadata_video 表（见 Core/DataBase/Tables/Sqlite.cs 建表；
+            // metadata 表没有这一列，写成 metadata.ExtraInfo 会让整条列表 SQL 直接报
+            // "no such column"，表现为启动后列表加载失败）
             "metadata.PathExist",
-            "metadata.ExtraInfo",
+            "metadata_video.ExtraInfo",
             "metadata_video.SubSection",
             "metadata_video.ImageUrls",
             "metadata.ReleaseDate",
@@ -518,8 +521,53 @@ namespace Jvedio.Core.UserControls.ViewModels
             Init();
         }
 
+        private static bool selectFieldsChecked;
+
+        /// <summary>
+        /// 启动时逐列确认 <see cref="SelectFields"/> 里的「表.列」在数据库真实存在。
+        /// <para>
+        /// SelectFields 是手写字符串，与建表语句（<c>Core/DataBase/Tables/Sqlite.cs</c>）没有编译期关联。
+        /// 列名写错时整条列表 SQL 会抛 <c>no such column</c>，界面表现为「启动后列表空白 / 加载失败」，
+        /// 日志里只有一段 SQLite 栈，看不出是哪一列。这里提前一列一句地探，把问题定位到具体列名。
+        /// </para>
+        /// <para>
+        /// 只记日志、不抛异常：校验失败时程序仍可启动，但日志里会出现
+        /// <c>列表查询列校验失败</c>，部署自检脚本据此判失败。
+        /// </para>
+        /// </summary>
+        private static void CheckSelectFields()
+        {
+            if (selectFieldsChecked)
+                return;
+            selectFieldsChecked = true;
+
+            var pattern = new System.Text.RegularExpressions.Regex(
+                @"^(?<table>[A-Za-z_][A-Za-z0-9_]*)\.(?<column>[A-Za-z_][A-Za-z0-9_]*)$");
+            var errors = new List<string>();
+            int checkedCount = 0;
+            foreach (string field in SelectFields) {
+                var match = pattern.Match((field ?? string.Empty).Trim());
+                if (!match.Success)
+                    continue;
+                string table = match.Groups["table"].Value;
+                string column = match.Groups["column"].Value;
+                try {
+                    metaDataMapper.Select($"select {table}.{column} from {table} limit 0");
+                    checkedCount++;
+                } catch (Exception ex) {
+                    errors.Add($"{table}.{column}: {ex.Message}");
+                }
+            }
+
+            if (errors.Count > 0)
+                Logger.Error("列表查询列校验失败（SelectFields 与表结构不一致）：\n  " + string.Join("\n  ", errors));
+            else
+                Logger.Debug("列表查询列校验通过（" + checkedCount + " 列）");
+        }
+
         public override void Init()
         {
+            CheckSelectFields();
             GlobalImageHeight = ViewVideo.GetImageHeight(ShowImageMode, GlobalImageWidth);
         }
 
