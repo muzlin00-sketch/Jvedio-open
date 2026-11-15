@@ -110,12 +110,20 @@ if ($AppDir) {
         if (-not (Test-Path -LiteralPath $today)) {
             $fail.Add("今天还没有日志：$today（程序可能根本没启动）")
         } else {
-            $bad = Select-String -LiteralPath $today -Pattern '列表查询列校验失败|no such column' -Encoding UTF8
-            if ($bad) {
-                $fail.Add("今日日志命中 SQL 列错误 $($bad.Count) 处：")
+            # 只检查「最后一次启动之后」的日志：同一份日志文件里可能还留着当天早些时候的
+            # 崩溃记录（例如修复前那次启动），全量扫描会把历史错误当成本次失败。
+            $lines = @(Get-Content -LiteralPath $today -Encoding UTF8)
+            $start = 0
+            for ($i = $lines.Count - 1; $i -ge 0; $i--) {
+                if ($lines[$i] -match 'app init, version') { $start = $i; break }
+            }
+            $session = @($lines | Select-Object -Skip $start)
+            $bad = @($session | Select-String -Pattern '列表查询列校验失败|no such column')
+            if ($bad.Count -gt 0) {
+                $fail.Add("本次启动的日志命中 SQL 列错误 $($bad.Count) 处：")
                 $bad | Select-Object -First 5 | ForEach-Object { $fail.Add('    ' + $_.Line) }
             } else {
-                $pass.Add("今日日志无 SQL 列错误：$today")
+                $pass.Add("本次启动（最后 $($session.Count) 行日志）无 SQL 列错误")
             }
         }
     }

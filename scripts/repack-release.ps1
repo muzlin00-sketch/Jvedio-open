@@ -63,6 +63,24 @@ if (Test-Path -LiteralPath $pluginSrc) {
     Write-Host "[2/4] 打包自带插件：$pluginFiles 个文件"
 }
 
+# 2c. Web 静态页单独覆盖
+#     bin\<Configuration>\ 下没有 Web 目录（Web\index.html 是作为 Copy 项手工放进部署目录的），
+#     所以第 2 步的「用构建产物覆盖同名文件」永远覆盖不到它，包里会一直沿用旧页面：
+#     exe 内嵌的是新页面、磁盘 Web\index.html 是旧的，/api/health 报 stale=true，
+#     手机端实际拿到的是旧版。这里从源码 Resources 显式覆盖。
+$webSrc = Join-Path $repoRoot 'Jvedio-WPF\Jvedio\Resources\Web'
+$webDst = Join-Path $stage 'Web'
+if (Test-Path -LiteralPath $webSrc) {
+    if (-not (Test-Path -LiteralPath $webDst)) { New-Item -ItemType Directory -Path $webDst -Force | Out-Null }
+    $webFiles = 0
+    Get-ChildItem -LiteralPath $webSrc -Recurse -File | ForEach-Object {
+        $relative = $_.FullName.Substring($webSrc.Length + 1)
+        Copy-Item -LiteralPath $_.FullName -Destination (Join-Path $webDst $relative) -Force
+        $webFiles++
+    }
+    Write-Host "[2/4] 覆盖 Web 静态页：$webFiles 个文件"
+}
+
 # 3. 确认包里的 exe 确实是刚构建的那个
 $stagedExe = Join-Path $stage 'Jvedio.exe'
 if ((Get-Item -LiteralPath $stagedExe).Length -ne (Get-Item -LiteralPath $exe).Length) {
