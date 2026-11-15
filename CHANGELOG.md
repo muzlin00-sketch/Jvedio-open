@@ -94,6 +94,11 @@
   而闭源控件库要的是「`CrawlerHeader(IWebProxy)` + 实例 `Default`」，缺方法只在运行时炸
   （`MissingMethodException` 被包进 `TypeInitializationException`，弹窗只说"程序异常"）。
   已按原版签名改回，见 [踩坑约定 #38](项目文档/踩坑约定.md)。
+- **番号插件刮削报「类型无法转换」**：网络层换成自家的 `RequestHeader` 之后，反射调插件
+  `GetInfo(SuperUtils.NetWork.Entity.RequestHeader, …)` 传的是另一个同形类型，运行期抛
+  `InvalidCastException: 类型 "Jvedio.Core.Net.RequestHeader" 的对象无法转换为类型 "SuperUtils.NetWork.Entity.RequestHeader"`。
+  现在 `Jvedio.Core.Net.RequestHeader` 直接继承 SuperUtils 的那个类型，插件接口能原样接住，
+  见 [踩坑约定 #39](项目文档/踩坑约定.md)。
 
 ### 变更
 

@@ -5,30 +5,28 @@ using System.Net.Http;
 namespace Jvedio.Core.Net
 {
     /// <summary>
-    /// 一次请求的配置（方法、超时、请求头、代理、请求体），取代
-    /// <c>SuperUtils.NetWork.Entity.RequestHeader</c>。
+    /// 一次请求的配置（方法、超时、请求头、代理、请求体）。
     /// <para>
-    /// <see cref="TimeOut"/> 的单位是<b>毫秒</b>（默认 10000），而
-    /// <see cref="Jvedio.Core.Net.NetSetting.HttpTimeout"/> 的单位是<b>秒</b>，
+    /// 继承 <c>SuperUtils.NetWork.Entity.RequestHeader</c>，而不是另外定义一份同形类型：
+    /// 插件（<c>plugins\crawlers\*.dll</c>）与闭源控件库的方法签名写死了那个类型，反射调用
+    /// 传本项目自己的同形对象会抛 <c>InvalidCastException</c>——
+    /// 「类型 "Jvedio.Core.Net.RequestHeader" 的对象无法转换为类型 "SuperUtils.NetWork.Entity.RequestHeader"」。
+    /// 做成子类后，任何接收基类的接口都能直接接住它，不必在每个调用点手工复制字段。
+    /// </para>
+    /// <para>
+    /// <see cref="SuperUtils.NetWork.Entity.RequestHeader.TimeOut"/> 的单位是<b>毫秒</b>（默认 10000），
+    /// 而 <see cref="Jvedio.Core.Net.NetSetting.HttpTimeout"/> 的单位是<b>秒</b>，
     /// 两者在调用处相乘转换，不要混用。
     /// </para>
     /// </summary>
-    public class RequestHeader
+    public class RequestHeader : SuperUtils.NetWork.Entity.RequestHeader
     {
-        public const double DEFAULT_TIMEOUT = 10000;
-
-        public HttpMethod Method { get; set; } = HttpMethod.Get;
-
-        public bool AllowAutoRedirect { get; set; } = true;
-
-        public double TimeOut { get; set; } = DEFAULT_TIMEOUT;
-
-        public HttpContent RequestBody { get; set; }
-
-        /// <summary>为 null 表示不走代理（请求时 <c>UseProxy</c> 会关掉）。</summary>
-        public IWebProxy WebProxy { get; set; } = SuperWebProxy.SystemWebProxy;
-
-        public Dictionary<string, string> Headers { get; set; } = new Dictionary<string, string>();
+        public RequestHeader()
+        {
+            // 基类默认 WebProxy = null；本项目约定默认走系统代理，
+            // 配置里关掉代理的场景由调用处显式置 null。
+            WebProxy = SuperWebProxy.SystemWebProxy;
+        }
 
         public override string ToString()
         {
